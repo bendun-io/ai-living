@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   beszel-agent:
     image: ghcr.io/henrygd/beszel-agent:latest
@@ -9,7 +7,7 @@ services:
     environment:
       TZ: Europe/Berlin
       HOSTNAME: ubuntu-server
-      BESZEL_HUB_URL: http://127.0.0.1:8090
+      BESZEL_HUB_URL: ${BESZEL_HUB_URL:-http://127.0.0.1:8090}
       BESZEL_TOKEN: ${BESZEL_TOKEN:-changeme}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro

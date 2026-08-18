@@ -10,26 +10,35 @@ This folder contains a simple monitoring setup for Ubuntu Server.
 
 ## Start the stack
 
+Copy the example environment file and adjust the values:
+
 ```bash
-docker compose -f monitoring/beszel-hub.yml up -d
-docker compose -f monitoring/beszel-agent.yml up -d
-docker compose -f monitoring/uptime-kuma.yml up -d
+cp monitoring/.env.example monitoring/.env
+```
+
+Then start the stack:
+
+```bash
+docker compose --env-file monitoring/.env -f monitoring/beszel-hub.yml up -d
+docker compose --env-file monitoring/.env -f monitoring/beszel-agent.yml up -d
+docker compose --env-file monitoring/.env -f monitoring/uptime-kuma.yml up -d
 ```
 
 ## Access
 
-- Beszel Hub: http://<ubuntu-host>:8090
-- Uptime Kuma: http://<ubuntu-host>:3001
+- Beszel Hub: http://<ubuntu-host>:${BESZEL_HUB_PORT:-8090}
+- Uptime Kuma: http://<ubuntu-host>:${KUMA_PORT:-3001}
 
 ## Environment
 
-For the Beszel agent, set a token before starting it:
+The shared file contains:
 
-```bash
-export BESZEL_TOKEN=your-secret-token
+```env
+BESZEL_TOKEN=changeme
+BESZEL_HUB_URL=http://127.0.0.1:8090
+BESZEL_HUB_PORT=8090
+KUMA_PORT=3001
 ```
-
-Then run the agent compose file again.
 
 ## Notes
 
