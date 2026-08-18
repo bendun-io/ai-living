@@ -7,6 +7,7 @@ from src.callbacks.callback import CallbackClient
 from src.llm.openai_client import LocalLLMClient, OpenAIResponsesClient
 from src.memory.memory import MemoryStore
 from src.models import AgentRunRequest, AgentRunResponse, CallbackPayload, ToolExecutionRecord, ToolInvocation
+from src.skills.library import SkillLibrary
 from src.tools.executor import ToolExecutor
 from src.tools.registry import ToolRegistry
 
@@ -20,11 +21,12 @@ class AgentService:
     tool_executor: ToolExecutor
     memory_store: MemoryStore
     callback_client: CallbackClient
+    skill_library: SkillLibrary | None = None
     max_iterations: int = 5
 
     async def run(self, request: AgentRunRequest) -> AgentRunResponse:
         memory = self._chat_safe_memory(await self.memory_store.load(request.conversationId))
-        prompt_bundle = build_prompt_bundle(request, self.tool_registry.definitions())
+        prompt_bundle = build_prompt_bundle(request, self.tool_registry.definitions(), self.skill_library)
         messages = [
             {"role": "system", "content": prompt_bundle.system_prompt},
             *memory,

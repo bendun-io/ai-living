@@ -6,6 +6,7 @@ from src.callbacks.callback import CallbackClient
 from src.config import Settings
 from src.llm.openai_client import LocalLLMClient, OpenAIResponsesClient
 from src.memory.memory import MemoryStore
+from src.skills.library import SkillLibrary
 from src.tools.adapters.local import build_local_tools
 from src.tools.adapters.mcp import MCPToolAdapter
 from src.tools.executor import ToolExecutor
@@ -19,10 +20,12 @@ class AgentRuntime:
     settings: Settings
     tool_registry: ToolRegistry | None = None
     agent_service: AgentService | None = None
+    skill_library: SkillLibrary | None = None
 
     async def initialize(self) -> None:
+        self.skill_library = SkillLibrary.default()
         registry = ToolRegistry()
-        for tool in build_local_tools():
+        for tool in build_local_tools(self.skill_library):
             registry.register(tool)
 
         if self.settings.enable_mcp:
@@ -43,6 +46,7 @@ class AgentRuntime:
             tool_executor=ToolExecutor(registry),
             memory_store=MemoryStore(),
             callback_client=CallbackClient(self.settings.callback_url),
+            skill_library=self.skill_library,
         )
 
     async def run(self, request):
