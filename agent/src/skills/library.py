@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
 try:
     import yaml
@@ -44,11 +44,23 @@ class SkillLibrary:
 
     @staticmethod
     def _default_skills_dir() -> Path:
+        env_dir = os.getenv("SKILLS_DIR")
+        if env_dir:
+            candidate = Path(env_dir).expanduser().resolve()
+            if candidate.exists():
+                return candidate
+
         repo_root = Path(__file__).resolve().parents[3]
         candidate = repo_root / "skills"
         if candidate.exists():
             return candidate
-        return Path(__file__).resolve().parents[2] / "skills"
+
+        for parent in [Path(__file__).resolve().parents[i] for i in range(0, 6)]:
+            candidate = parent / "skills"
+            if candidate.exists():
+                return candidate
+
+        return repo_root / "skills"
 
     @staticmethod
     def _fallback_skills() -> list[Skill]:

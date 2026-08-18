@@ -28,3 +28,15 @@ def test_skill_details_are_available_for_deeper_context() -> None:
     assert any("calendar" in skill.description.lower() for skill in details)
     assert "calendar" in library.brief_context().lower()
     assert details[0].source_path is not None
+
+
+def test_joke_skill_prefers_dark_math_and_logic_humor() -> None:
+    library = SkillLibrary.default()
+
+    matches = library.search("joke")
+
+    assert any(skill.name == "joke_teller" for skill in matches)
+    joke_skill = next(skill for skill in matches if skill.name == "joke_teller")
+    text = (joke_skill.summary + " " + joke_skill.description).lower()
+    assert "dark humor" in text or "dark" in text
+    assert "jimmy carr" in text or "math" in text or "logic" in text

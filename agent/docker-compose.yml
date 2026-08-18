@@ -14,8 +14,11 @@ services:
       MCP_SERVERS: ${MCP_SERVERS:-}
       MEMORY_PROVIDER: ${MEMORY_PROVIDER:-memory}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      SKILLS_DIR: /app/skills
     ports:
       - "8000:8000"
+    volumes:
+      - ../skills:/app/skills:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
