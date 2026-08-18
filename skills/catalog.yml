@@ -1,0 +1,20 @@
+skills:
+  - name: document_search
+    summary: Search project docs for answers.
+    keywords:
+      - docs
+      - documentation
+      - readme
+      - knowledge
+      - search
+      - project
+
+  - name: calendar_lookup
+    summary: Check availability and schedule items.
+    keywords:
+      - calendar
+      - schedule
+      - availability
+      - meeting
+      - events
+      - time

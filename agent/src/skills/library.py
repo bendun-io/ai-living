@@ -1,7 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
+
+try:
+    import yaml
+except ImportError:  # pragma: no cover - optional dependency for file-based loading
+    yaml = None
 
 
 @dataclass(slots=True)
@@ -10,6 +16,7 @@ class Skill:
     summary: str
     description: str
     keywords: list[str] = field(default_factory=list)
+    source_path: str | None = None
 
     def matches(self, query: str) -> bool:
         query_l = query.lower().strip()
@@ -27,31 +34,87 @@ class SkillLibrary:
     _skills: list[Skill] = field(default_factory=list)
 
     @classmethod
-    def default(cls) -> "SkillLibrary":
-        return cls(
-            _skills=[
-                Skill(
-                    name="document_search",
-                    summary="Search project docs for answers.",
-                    description=(
-                        "Use this skill when the user asks for information that should be found in project docs, "
-                        "README files, or internal notes. It searches the documentation library for matching terms "
-                        "and returns the relevant passages for a grounded answer."
-                    ),
-                    keywords=["docs", "documentation", "readme", "knowledge", "search", "project"],
+    def default(cls, base_dir: Path | None = None) -> "SkillLibrary":
+        skills_dir = base_dir or cls._default_skills_dir()
+        if skills_dir.exists():
+            catalog = cls._load_from_disk(skills_dir)
+            if catalog:
+                return cls(_skills=catalog)
+        return cls(_skills=cls._fallback_skills())
+
+    @staticmethod
+    def _default_skills_dir() -> Path:
+        repo_root = Path(__file__).resolve().parents[3]
+        candidate = repo_root / "skills"
+        if candidate.exists():
+            return candidate
+        return Path(__file__).resolve().parents[2] / "skills"
+
+    @staticmethod
+    def _fallback_skills() -> list[Skill]:
+        return [
+            Skill(
+                name="document_search",
+                summary="Search project docs for answers.",
+                description=(
+                    "Use this skill when the user asks for information that should be found in project docs, "
+                    "README files, or internal notes. It searches the documentation library for matching terms "
+                    "and returns the relevant passages for a grounded answer."
                 ),
-                Skill(
-                    name="calendar_lookup",
-                    summary="Check availability and schedule items.",
-                    description=(
-                        "Use this skill when the user asks about meeting times, schedule availability, or upcoming "
-                        "calendar events. It provides a concise summary of relevant calendar items and helps identify "
-                        "the best slot for follow-up conversations or appointments."
-                    ),
-                    keywords=["calendar", "schedule", "availability", "meeting", "events", "time"],
+                keywords=["docs", "documentation", "readme", "knowledge", "search", "project"],
+            ),
+            Skill(
+                name="calendar_lookup",
+                summary="Check availability and schedule items.",
+                description=(
+                    "Use this skill when the user asks about meeting times, schedule availability, or upcoming "
+                    "calendar events. It provides a concise summary of relevant calendar items and helps identify "
+                    "the best slot for follow-up conversations or appointments."
                 ),
-            ]
-        )
+                keywords=["calendar", "schedule", "availability", "meeting", "events", "time"],
+            ),
+        ]
+
+    @staticmethod
+    def _load_from_disk(skills_dir: Path) -> list[Skill]:
+        if yaml is None:
+            return []
+
+        catalog_file = skills_dir / "catalog.yml"
+        if not catalog_file.exists():
+            return []
+
+        try:
+            raw = yaml.safe_load(catalog_file.read_text(encoding="utf-8")) or []
+        except (yaml.YAMLError, OSError):
+            return []
+
+        entries = raw if isinstance(raw, list) else raw.get("skills", []) if isinstance(raw, dict) else []
+        if not isinstance(entries, list):
+            return []
+
+        skills: list[Skill] = []
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+
+            name = str(entry.get("name", "")).strip()
+            if not name:
+                continue
+
+            skill_dir = skills_dir / name
+            description_file = skill_dir / "Skill.md"
+            description = description_file.read_text(encoding="utf-8").strip() if description_file.exists() else str(entry.get("summary", ""))
+            skills.append(
+                Skill(
+                    name=name,
+                    summary=str(entry.get("summary", "")).strip(),
+                    description=description,
+                    keywords=[str(item).strip() for item in entry.get("keywords", []) if str(item).strip()],
+                    source_path=str(description_file) if description_file.exists() else None,
+                )
+            )
+        return skills
 
     def add(self, skill: Skill) -> None:
         self._skills.append(skill)
