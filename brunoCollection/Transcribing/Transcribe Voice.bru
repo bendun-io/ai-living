@@ -1,0 +1,21 @@
+meta {
+  name: Transcribe Voice
+  type: http
+  seq: 1
+}
+
+post {
+  url: http://localhost:3010/transcribe
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "file_id": "AwACAgIAAxkBAAMLam9E17avfNgN6YOOkwpqdIhBjgkAAlGdAALm53lLPsPZCq9_d-s9BA"
+  }
+}

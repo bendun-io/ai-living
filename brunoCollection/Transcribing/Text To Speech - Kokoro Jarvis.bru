@@ -1,0 +1,23 @@
+meta {
+  name: Text To Speech - Kokoro Jarvis
+  type: http
+  seq: 3
+}
+
+post {
+  url: http://localhost:3020/tts
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "voice": "am_eric",
+    "text": "Good evening, sir. I have completed the diagnostic and am ready to assist with your request.",
+    "format": "wav"
+  }
+}

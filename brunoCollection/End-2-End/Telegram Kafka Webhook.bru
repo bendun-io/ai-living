@@ -1,0 +1,44 @@
+meta {
+  name: Telegram Kafka Webhook
+  type: http
+  seq: 1
+}
+
+post {
+  url: http://localhost:3000/telegram/webhook
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+  x-telegram-bot-api-secret-token: J5n3LeIRzJI8AwqHhQqM
+}
+
+body:json {
+  {
+    "update_id": 419732724,
+    "message": {
+      "message_id": 11,
+      "from": {
+        "id": 7883182252,
+        "is_bot": false,
+        "first_name": "Fabian",
+        "language_code": "en"
+      },
+      "chat": {
+        "id": 7883182252,
+        "first_name": "Fabian",
+        "type": "private"
+      },
+      "date": 1785677015,
+      "voice": {
+        "duration": 4,
+        "mime_type": "audio/ogg",
+        "file_id": "AwACAgIAAxkBAAMLam9E17avfNgN6YOOkwpqdIhBjgkAAlGdAALm53lLPsPZCq9_d-s9BA",
+        "file_unique_id": "AgADUZ0AAubneUs",
+        "file_size": 89040
+      }
+    }
+  }
+}

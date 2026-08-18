@@ -1,0 +1,23 @@
+meta {
+  name: Text To Speech - Kokoro MP3
+  type: http
+  seq: 3
+}
+
+post {
+  url: http://localhost:3020/tts
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "voice": "af_bella",
+    "text": "Hello from Kokoro text to speech in MP3 format.",
+    "format": "mp3"
+  }
+}

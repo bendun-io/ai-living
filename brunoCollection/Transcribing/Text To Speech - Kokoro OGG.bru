@@ -1,0 +1,23 @@
+meta {
+  name: Text To Speech - Kokoro OGG
+  type: http
+  seq: 4
+}
+
+post {
+  url: http://localhost:3020/tts
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "voice": "af_bella",
+    "text": "Hello from Kokoro text to speech in OGG format.",
+    "format": "ogg"
+  }
+}

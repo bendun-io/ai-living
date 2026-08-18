@@ -1,0 +1,97 @@
+services:
+
+  kafka:
+    image: apache/kafka:4.1.0
+    container_name: kafka
+
+    restart: unless-stopped
+
+    ports:
+      - "9092:9092"
+
+    environment:
+      CLUSTER_ID: 6vmpeJXTQxWhpvz-KSxJjA
+      KAFKA_NODE_ID: 1
+
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+
+  webhook:
+    build:
+      context: ./webhook
+    container_name: telegram-webhook
+    networks:
+      - default
+    depends_on:
+      - kafka
+    ports:
+      - "3000:3000"
+
+    environment:
+      TELEGRAM_SECRET: J5n3LeIRzJI8AwqHhQqM
+
+  transcribe:
+    build:
+      context: ./transcribe
+    container_name: telegram-transcribe
+    restart: unless-stopped
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_API_BASE: ${TELEGRAM_API_BASE:-https://api.telegram.org}
+      TRANSCRIBE_MODEL_SIZE: ${TRANSCRIBE_MODEL_SIZE:-base}
+      TRANSCRIBE_DEVICE: ${TRANSCRIBE_DEVICE:-cpu}
+      TRANSCRIBE_COMPUTE_TYPE: ${TRANSCRIBE_COMPUTE_TYPE:-int8}
+    ports:
+      - "3010:8000"
+    networks:
+      - default
+
+  tts:
+    build:
+      context: ./tts
+    container_name: telegram-tts
+    restart: unless-stopped
+    environment:
+      KOKORO_MODEL_PATH: /models/kokoro-v1.0.onnx
+      KOKORO_VOICES_PATH: /models/voices-v1.0.bin
+      KOKORO_LANGUAGE: ${KOKORO_LANGUAGE:-en-gb}
+      KOKORO_SPEED: ${KOKORO_SPEED:-0.9}
+      TTS_MAX_TEXT_LENGTH: ${TTS_MAX_TEXT_LENGTH:-1500}
+      TTS_ALLOWED_VOICES: ${TTS_ALLOWED_VOICES:-af_alloy,af_aoede,af_bella,af_heart,af_jessica,af_kore,af_nicole,af_nova,af_river,am_adam,am_echo,am_eric,bf_emma,bf_isabella,bm_george,bm_lewis}
+    volumes:
+      - ./kokoro-v1.0.onnx:/models/kokoro-v1.0.onnx:ro
+      - ./voices-v1.0.bin:/models/voices-v1.0.bin:ro
+    ports:
+      - "3020:8000"
+    networks:
+      - default
+
+  console:
+    image: docker.redpanda.com/redpandadata/console:latest
+    container_name: kafka-console
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    environment:
+      KAFKA_BROKERS: kafka:9092
+    depends_on:
+      - kafka
+
+networks:
+  default:
+    name: telegram-stack
+
+volumes:
+  kafka-data:

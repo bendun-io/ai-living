@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Living</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-container">
+      <div class="app-shell">
+        <aside class="sidebar">
+          <button id="newChatButton" class="primary-button">New chat</button>
+          <ul id="threadList" class="thread-list"></ul>
+        </aside>
+
+        <main class="main-panel">
+          <div id="messages" class="messages" aria-live="polite"></div>
+
+          <div class="composer">
+            <input id="messageInput" type="text" placeholder="Type a message..." />
+            <button id="sendButton" class="primary-button">Send</button>
+            <button id="recordButton" class="secondary-button">Record</button>
+          </div>
+          <p id="recordingStatus" class="recording-status" aria-live="polite"></p>
+        </main>
+      </div>
+
+      <footer class="status-footer" aria-live="polite">
+        <span id="serviceStatusDot" class="status-dot status-error" aria-hidden="true"></span>
+        <span id="serviceStatusText">Checking service connections...</span>
+      </footer>
+    </div>
+
+    <script src="renderer.js"></script>
+  </body>
+</html>

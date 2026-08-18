@@ -1,0 +1,11 @@
+.env
+
+.venv*
+__pycache__
+.pytest_cache
+
+dist
+node_modules
+
+*.bin
+*.onnx

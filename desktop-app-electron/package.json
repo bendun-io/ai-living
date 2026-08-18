@@ -1,0 +1,51 @@
+{
+  "name": "ai-living-electron",
+  "version": "0.1.0",
+  "description": "Electron UI for the AI Living desktop app",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "package": "electron-builder",
+    "build": "npm run build:portable",
+    "build:portable": "electron-builder --win portable"
+  },
+  "keywords": [
+    "electron",
+    "ai",
+    "desktop"
+  ],
+  "author": "AI Living",
+  "license": "MIT",
+  "build": {
+    "appId": "io.bendun.ailiving.electron",
+    "productName": "AI Living",
+    "asar": true,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "index.html",
+      "main.js",
+      "preload.js",
+      "renderer.js",
+      "styles.css",
+      "docs/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    }
+  },
+  "devDependencies": {
+    "electron": "^31.7.1",
+    "electron-builder": "^24.13.3"
+  }
+}

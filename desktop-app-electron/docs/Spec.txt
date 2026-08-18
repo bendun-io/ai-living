@@ -1,0 +1,12 @@
+# Specification of the desktop app
+
+Create a standalone app to interact with the AI living agent. The app should follow the following specifications:
+
+- It should be standalone runnable app on Windows and Mac.
+- It should have a simple chat based user interface and different histories / starts for new chats on the left side.
+- The chat history should be saved locally in the OS appropriate folder for app data.
+- For the chats it should connect to the agent in the agent folder on the top level.
+- Communication with the agent should be http / websockets. If needed the agent should be extendend. For that sepcify the required interface.
+- The user should be able to input text or speech via the microphone. For speech, the transcribe service from the telegram-stack should be used. Also here, specify the needed interface there.
+- The code for the app should be in the subfolder src.
+- Also create a build script for the app.

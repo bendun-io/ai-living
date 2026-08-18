@@ -1,0 +1,26 @@
+services:
+  agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-living-agent
+    environment:
+      AGENT_HOST: 0.0.0.0
+      AGENT_PORT: 8000
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
+      CALLBACK_URL: ${CALLBACK_URL:-http://host.docker.internal:5678/webhook/agentFinished}
+      ENABLE_MCP: ${ENABLE_MCP:-false}
+      MCP_SERVERS: ${MCP_SERVERS:-}
+      MEMORY_PROVIDER: ${MEMORY_PROVIDER:-memory}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "8000:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - ai-living
+
+networks:
+  ai-living:
+    name: ai-living

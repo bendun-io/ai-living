@@ -1,0 +1,25 @@
+meta {
+  name: Transcribe Audio Upload
+  type: http
+  seq: 3
+}
+
+post {
+  url: http://localhost:3010/transcribe/audio
+  body: multipartForm
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+body:multipart-form {
+  file: @file(testtext.wav)
+  language: en
+}
+
+assert {
+  res.status: eq 200
+  res.body.text: isDefined
+}
