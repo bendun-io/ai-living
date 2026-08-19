@@ -58,12 +58,6 @@ button, input {
   padding: 16px 16px 8px;
 }
 
-.panel-toolbar {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 10px;
-}
-
 .primary-button, .secondary-button {
   border: none;
   border-radius: 10px;
@@ -131,19 +125,6 @@ button, input {
 .message.assistant {
   align-self: flex-start;
   background: var(--assistant);
-}
-
-.message-debug {
-  margin-top: 8px;
-  border-top: 1px solid rgba(148, 163, 184, 0.35);
-  padding-top: 8px;
-}
-
-.message-debug pre {
-  margin: 0;
-  white-space: pre-wrap;
-  font-size: 0.82rem;
-  color: #cbd5e1;
 }
 
 .composer {
@@ -214,6 +195,26 @@ button, input {
   padding: 0 12px;
   color: var(--muted);
   font-size: 0.88rem;
+}
+
+.debug-footer-button {
+  margin-left: auto;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #1e293b;
+  color: #cbd5e1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
+}
+
+.debug-footer-button:hover {
+  filter: brightness(1.12);
 }
 
 .status-dot {

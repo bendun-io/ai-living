@@ -105,12 +105,12 @@ function createThread(title = 'New chat') {
     id,
     title,
     messages: [],
-    debugEnabled: false,
   };
   state.threads.push(thread);
   state.currentThreadId = id;
   renderThreads();
   renderMessages();
+  publishDebugState();
   return thread;
 }
 
@@ -122,8 +122,8 @@ function renderThreads() {
     item.dataset.threadId = thread.id;
     item.addEventListener('click', () => {
       state.currentThreadId = thread.id;
-      updateDebugButtonUi();
       renderMessages();
+      publishDebugState();
     });
     threadListEl.appendChild(item);
   });
@@ -139,19 +139,7 @@ function renderMessages() {
   for (const message of thread.messages) {
     const el = document.createElement('div');
     el.className = `message ${message.role}`;
-    const body = document.createElement('div');
-    body.textContent = `${message.role}: ${message.text}`;
-    el.appendChild(body);
-
-    if (thread.debugEnabled && message.role === 'assistant' && message.debug) {
-      const debugWrapper = document.createElement('div');
-      debugWrapper.className = 'message-debug';
-      const debugPre = document.createElement('pre');
-      debugPre.textContent = formatDebugTrace(message.debug);
-      debugWrapper.appendChild(debugPre);
-      el.appendChild(debugWrapper);
-    }
-
+    el.textContent = `${message.role}: ${message.text}`;
     messagesEl.appendChild(el);
   }
 
@@ -166,50 +154,37 @@ function addMessage(role, text, debug = null) {
 
   thread.messages.push({ role, text, debug });
   renderMessages();
+  publishDebugState();
 }
 
-function updateDebugButtonUi() {
-  const thread = state.threads.find((item) => item.id === state.currentThreadId);
-  const enabled = Boolean(thread?.debugEnabled);
-  debugButton.textContent = enabled ? 'Debug: On' : 'Debug: Off';
+function buildDebugSnapshot() {
+  return {
+    currentThreadId: state.currentThreadId,
+    threads: state.threads.map((thread) => ({
+      id: thread.id,
+      title: thread.title,
+      messages: thread.messages
+        .filter((message) => message.role === 'assistant' && message.debug)
+        .map((message, index) => ({
+          index,
+          answer: message.text,
+          debug: message.debug,
+        })),
+    })),
+  };
 }
 
-function toggleDebugMode() {
-  const thread = state.threads.find((item) => item.id === state.currentThreadId);
-  if (!thread) {
-    return;
+function publishDebugState() {
+  if (window.debugBridge && typeof window.debugBridge.updateDebugState === 'function') {
+    window.debugBridge.updateDebugState(buildDebugSnapshot());
   }
-  thread.debugEnabled = !thread.debugEnabled;
-  updateDebugButtonUi();
-  renderMessages();
 }
 
-function formatDebugTrace(debug) {
-  const skills = Array.isArray(debug?.skillsRead) ? debug.skillsRead : [];
-  const tools = Array.isArray(debug?.toolsUsed) ? debug.toolsUsed : [];
-
-  const lines = [];
-  lines.push('Debug Trace');
-  lines.push('Skills read:');
-  if (skills.length === 0) {
-    lines.push('- none');
-  } else {
-    for (const skill of skills) {
-      lines.push(`- ${skill}`);
-    }
+async function openDebugWindow() {
+  if (window.debugBridge && typeof window.debugBridge.openDebugWindow === 'function') {
+    await window.debugBridge.openDebugWindow();
+    publishDebugState();
   }
-
-  lines.push('Tools used:');
-  if (tools.length === 0) {
-    lines.push('- none');
-  } else {
-    tools.forEach((tool, index) => {
-      lines.push(`${index + 1}. ${tool.tool}`);
-      lines.push(JSON.stringify(tool.arguments || {}, null, 2));
-    });
-  }
-
-  return lines.join('\n');
 }
 
 async function sendTextMessage() {
@@ -360,14 +335,12 @@ inputEl.addEventListener('keydown', (event) => {
   }
 });
 recordButton.addEventListener('click', recordAudio);
-debugButton.addEventListener('click', toggleDebugMode);
+debugButton.addEventListener('click', openDebugWindow);
 newChatButton.addEventListener('click', () => {
   createThread('New chat');
-  updateDebugButtonUi();
 });
 
 createThread('New chat');
-updateDebugButtonUi();
 setIdleRecordUi();
 refreshServiceStatus();
 setInterval(refreshServiceStatus, HEALTH_CHECK_INTERVAL_MS);

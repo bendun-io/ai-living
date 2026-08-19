@@ -29,7 +29,10 @@
       "main.js",
       "preload.js",
       "renderer.js",
+      "debug.html",
+      "debug-renderer.js",
       "styles.css",
+      "debug.css",
       "docs/**/*",
       "package.json"
     ],
