@@ -6,6 +6,7 @@ const messagesEl = document.getElementById('messages');
 const inputEl = document.getElementById('messageInput');
 const sendButton = document.getElementById('sendButton');
 const recordButton = document.getElementById('recordButton');
+const debugButton = document.getElementById('debugButton');
 const recordingStatusEl = document.getElementById('recordingStatus');
 const serviceStatusDotEl = document.getElementById('serviceStatusDot');
 const serviceStatusTextEl = document.getElementById('serviceStatusText');
@@ -104,6 +105,7 @@ function createThread(title = 'New chat') {
     id,
     title,
     messages: [],
+    debugEnabled: false,
   };
   state.threads.push(thread);
   state.currentThreadId = id;
@@ -120,6 +122,7 @@ function renderThreads() {
     item.dataset.threadId = thread.id;
     item.addEventListener('click', () => {
       state.currentThreadId = thread.id;
+      updateDebugButtonUi();
       renderMessages();
     });
     threadListEl.appendChild(item);
@@ -136,21 +139,77 @@ function renderMessages() {
   for (const message of thread.messages) {
     const el = document.createElement('div');
     el.className = `message ${message.role}`;
-    el.textContent = `${message.role}: ${message.text}`;
+    const body = document.createElement('div');
+    body.textContent = `${message.role}: ${message.text}`;
+    el.appendChild(body);
+
+    if (thread.debugEnabled && message.role === 'assistant' && message.debug) {
+      const debugWrapper = document.createElement('div');
+      debugWrapper.className = 'message-debug';
+      const debugPre = document.createElement('pre');
+      debugPre.textContent = formatDebugTrace(message.debug);
+      debugWrapper.appendChild(debugPre);
+      el.appendChild(debugWrapper);
+    }
+
     messagesEl.appendChild(el);
   }
 
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
-function addMessage(role, text) {
+function addMessage(role, text, debug = null) {
   const thread = state.threads.find((item) => item.id === state.currentThreadId);
   if (!thread) {
     return;
   }
 
-  thread.messages.push({ role, text });
+  thread.messages.push({ role, text, debug });
   renderMessages();
+}
+
+function updateDebugButtonUi() {
+  const thread = state.threads.find((item) => item.id === state.currentThreadId);
+  const enabled = Boolean(thread?.debugEnabled);
+  debugButton.textContent = enabled ? 'Debug: On' : 'Debug: Off';
+}
+
+function toggleDebugMode() {
+  const thread = state.threads.find((item) => item.id === state.currentThreadId);
+  if (!thread) {
+    return;
+  }
+  thread.debugEnabled = !thread.debugEnabled;
+  updateDebugButtonUi();
+  renderMessages();
+}
+
+function formatDebugTrace(debug) {
+  const skills = Array.isArray(debug?.skillsRead) ? debug.skillsRead : [];
+  const tools = Array.isArray(debug?.toolsUsed) ? debug.toolsUsed : [];
+
+  const lines = [];
+  lines.push('Debug Trace');
+  lines.push('Skills read:');
+  if (skills.length === 0) {
+    lines.push('- none');
+  } else {
+    for (const skill of skills) {
+      lines.push(`- ${skill}`);
+    }
+  }
+
+  lines.push('Tools used:');
+  if (tools.length === 0) {
+    lines.push('- none');
+  } else {
+    tools.forEach((tool, index) => {
+      lines.push(`${index + 1}. ${tool.tool}`);
+      lines.push(JSON.stringify(tool.arguments || {}, null, 2));
+    });
+  }
+
+  return lines.join('\n');
 }
 
 async function sendTextMessage() {
@@ -189,7 +248,7 @@ async function sendTextMessage() {
 
     const payload = await response.json();
     const answer = payload.result || 'No response';
-    addMessage('assistant', answer);
+    addMessage('assistant', answer, payload.debug || null);
   } catch (error) {
     addMessage('assistant', `Error: ${error.message}`);
   }
@@ -301,11 +360,14 @@ inputEl.addEventListener('keydown', (event) => {
   }
 });
 recordButton.addEventListener('click', recordAudio);
+debugButton.addEventListener('click', toggleDebugMode);
 newChatButton.addEventListener('click', () => {
   createThread('New chat');
+  updateDebugButtonUi();
 });
 
 createThread('New chat');
+updateDebugButtonUi();
 setIdleRecordUi();
 refreshServiceStatus();
 setInterval(refreshServiceStatus, HEALTH_CHECK_INTERVAL_MS);

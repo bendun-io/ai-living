@@ -107,7 +107,7 @@ def main() -> int:
         if not isinstance(payload, dict):
             raise AssertionError("Callback payload was not captured")
 
-        expected_keys = {"conversationId", "result", "toolLog", "metadata"}
+        expected_keys = {"conversationId", "result", "toolLog", "debug", "metadata"}
         missing_keys = expected_keys - set(payload)
         if missing_keys:
             raise AssertionError(f"Missing callback keys: {sorted(missing_keys)} in {payload}")
@@ -117,6 +117,15 @@ def main() -> int:
 
         if not isinstance(payload["toolLog"], list):
             raise AssertionError(f"toolLog is not a list: {payload}")
+
+        if not isinstance(payload["debug"], dict):
+            raise AssertionError(f"debug is not a dict: {payload}")
+
+        if not isinstance(payload["debug"].get("skillsRead", []), list):
+            raise AssertionError(f"debug.skillsRead is not a list: {payload}")
+
+        if not isinstance(payload["debug"].get("toolsUsed", []), list):
+            raise AssertionError(f"debug.toolsUsed is not a list: {payload}")
 
         if not isinstance(payload["metadata"], dict):
             raise AssertionError(f"metadata is not a dict: {payload}")

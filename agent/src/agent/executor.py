@@ -6,7 +6,7 @@ from typing import Any
 from src.callbacks.callback import CallbackClient
 from src.llm.openai_client import LocalLLMClient, OpenAIResponsesClient
 from src.memory.memory import MemoryStore
-from src.models import AgentRunRequest, AgentRunResponse, CallbackPayload, ToolExecutionRecord, ToolInvocation
+from src.models import AgentRunRequest, AgentRunResponse, CallbackPayload, DebugTrace, ToolExecutionRecord, ToolInvocation, ToolUsageTrace
 from src.skills.library import SkillLibrary
 from src.tools.executor import ToolExecutor
 from src.tools.registry import ToolRegistry
@@ -33,6 +33,7 @@ class AgentService:
             {"role": "user", "content": prompt_bundle.user_prompt},
         ]
         tool_log: list[ToolExecutionRecord] = []
+        tools_used: list[ToolUsageTrace] = []
         result_text = request.message
 
         for _ in range(self.max_iterations):
@@ -45,6 +46,7 @@ class AgentService:
             messages.append(assistant_message)
 
             for invocation in plan.tool_calls:
+                tools_used.append(ToolUsageTrace(tool=invocation.name, arguments=invocation.arguments))
                 record = await self.tool_executor.execute(invocation)
                 tool_log.append(record)
                 messages.append(
@@ -55,10 +57,14 @@ class AgentService:
                     }
                 )
 
+        skills_read = self.skill_library.skill_names() if self.skill_library is not None else []
+        debug_trace = DebugTrace(skillsRead=skills_read, toolsUsed=tools_used)
+
         response = AgentRunResponse(
             conversationId=request.conversationId,
             result=result_text,
             toolLog=tool_log,
+            debug=debug_trace,
             metadata=request.metadata,
         )
         await self.memory_store.append(

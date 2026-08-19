@@ -44,6 +44,16 @@ class ToolExecutionRecord(BaseModel):
     result: ToolResult
 
 
+class ToolUsageTrace(BaseModel):
+    tool: str
+    arguments: dict[str, Any] = Field(default_factory=dict)
+
+
+class DebugTrace(BaseModel):
+    skillsRead: list[str] = Field(default_factory=list)
+    toolsUsed: list[ToolUsageTrace] = Field(default_factory=list)
+
+
 class LLMPlan(BaseModel):
     kind: Literal["final", "tool_calls"]
     final_answer: str | None = None
@@ -55,6 +65,7 @@ class AgentRunResponse(BaseModel):
     conversationId: str
     result: str
     toolLog: list[ToolExecutionRecord] = Field(default_factory=list)
+    debug: DebugTrace = Field(default_factory=DebugTrace)
     metadata: AgentMetadata = Field(default_factory=AgentMetadata)
 
 
@@ -62,4 +73,5 @@ class CallbackPayload(BaseModel):
     conversationId: str
     result: str
     toolLog: list[ToolExecutionRecord] = Field(default_factory=list)
+    debug: DebugTrace = Field(default_factory=DebugTrace)
     metadata: AgentMetadata = Field(default_factory=AgentMetadata)

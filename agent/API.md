@@ -64,6 +64,17 @@ Starts a single agent run for one conversation message.
   "conversationId": "smoke-test-1",
   "result": "echo hello",
   "toolLog": [],
+  "debug": {
+    "skillsRead": ["document_search", "calendar_lookup", "joke_teller"],
+    "toolsUsed": [
+      {
+        "tool": "echo",
+        "arguments": {
+          "message": "echo hello"
+        }
+      }
+    ]
+  },
   "metadata": {
     "tenant": "local",
     "language": "en",
@@ -77,6 +88,9 @@ Starts a single agent run for one conversation message.
 - `conversationId`: Echoed conversation identifier.
 - `result`: Final answer produced by the agent.
 - `toolLog`: Ordered list of tool executions.
+- `debug`: Trace details for client-side debugging.
+  - `skillsRead`: Ordered list of skill names loaded for this run.
+  - `toolsUsed`: Ordered list of tools invoked, each with JSON arguments.
 - `metadata`: Echoed metadata object.
 
 ## Callback contract
@@ -90,6 +104,17 @@ The agent sends the same response envelope to the configured callback URL after 
   "conversationId": "smoke-test-1",
   "result": "echo hello",
   "toolLog": [],
+  "debug": {
+    "skillsRead": ["document_search", "calendar_lookup", "joke_teller"],
+    "toolsUsed": [
+      {
+        "tool": "echo",
+        "arguments": {
+          "message": "echo hello"
+        }
+      }
+    ]
+  },
   "metadata": {
     "tenant": "local",
     "language": "en",

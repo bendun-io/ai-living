@@ -136,6 +136,9 @@ class SkillLibrary:
             return list(self._skills)
         return [skill for skill in self._skills if skill.matches(query)]
 
+    def skill_names(self) -> list[str]:
+        return [skill.name for skill in self._skills]
+
     def brief_context(self) -> str:
         if not self._skills:
             return "No skills are available."
