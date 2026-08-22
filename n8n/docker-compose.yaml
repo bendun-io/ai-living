@@ -40,9 +40,7 @@ services:
 
   cloudflared:
     image: cloudflare/cloudflared:latest
-    command: tunnel --no-autoupdate run --token ${TOKEN}
-    environment:
-      TOKEN: ${CLOUD_FLARE_TUNNEL_TOKEN:-}
+    command: tunnel --no-autoupdate run --token ${CLOUD_FLARE_TUNNEL_TOKEN}
     restart: unless-stopped
 
 volumes:
