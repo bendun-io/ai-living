@@ -1,0 +1,18 @@
+meta {
+  name: Calendar Google Read
+  type: http
+  seq: 1
+}
+
+post {
+  url: https://n8n.bendun.io/webhook-test/5b6e2d7b-bfe5-484d-9a47-7e105a1b4207
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "starttime": "2026-08-22T01:00:00+02:00",
+    "endtime": "2026-08-29T01:00:00+02:00"
+  }
+}
