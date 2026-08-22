@@ -45,7 +45,7 @@ services:
   transcribe:
     build:
       context: ./transcribe
-    container_name: telegram-transcribe
+    container_name: ai-living-transcribe
     restart: unless-stopped
     environment:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
@@ -61,7 +61,7 @@ services:
   tts:
     build:
       context: ./tts
-    container_name: telegram-tts
+    container_name: ai-living-tts
     restart: unless-stopped
     environment:
       KOKORO_MODEL_PATH: /models/kokoro-v1.0.onnx
