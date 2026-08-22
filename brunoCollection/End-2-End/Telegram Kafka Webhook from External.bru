@@ -1,11 +1,11 @@
 meta {
-  name: Telegram Kafka Webhook
+  name: Telegram Kafka Webhook from External
   type: http
-  seq: 1
+  seq: 2
 }
 
 post {
-  url: http://{{thinkCenter01}}:3000/telegram/webhook
+  url: https://telegram.bendun.io/telegram/webhook
   body: json
   auth: none
 }
