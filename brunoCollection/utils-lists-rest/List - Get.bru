@@ -1,0 +1,16 @@
+meta {
+  name: List - Get
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{utils_lists_base_url}}/lists/{{rest_list_id}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.list.id: eq {{rest_list_id}}
+}

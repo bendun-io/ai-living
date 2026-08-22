@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Utils Lists</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Utils Lists</h1>
+      <nav>
+        <button id="nav-lists" class="active">Lists</button>
+        <button id="nav-audit">Audit Log</button>
+      </nav>
+    </header>
+
+    <main>
+      <section id="lists-view">
+        <div class="toolbar">
+          <input id="list-filter" type="text" placeholder="Filter lists" />
+          <button id="list-filter-btn">Search</button>
+          <button id="list-add-btn">Add List</button>
+        </div>
+        <div class="grid">
+          <div>
+            <h2>All Lists</h2>
+            <ul id="lists"></ul>
+          </div>
+          <div>
+            <h2>List Details</h2>
+            <div id="list-details-empty">Select a list to view details.</div>
+            <div id="list-details" class="hidden">
+              <h3 id="detail-title"></h3>
+              <p id="detail-description"></p>
+              <div class="toolbar">
+                <input id="item-filter" type="text" placeholder="Filter items" />
+                <button id="item-filter-btn">Search</button>
+                <button id="item-add-btn">Add Item</button>
+              </div>
+              <ul id="items"></ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="audit-view" class="hidden">
+        <h2>Audit Log</h2>
+        <button id="audit-refresh-btn">Refresh</button>
+        <ul id="audit"></ul>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

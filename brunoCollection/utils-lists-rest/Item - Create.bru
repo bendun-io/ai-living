@@ -1,0 +1,35 @@
+meta {
+  name: Item - Create
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{utils_lists_base_url}}/lists/{{rest_list_id}}/items
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "title": "REST Task",
+    "notes": "Created via Bruno REST",
+    "status": "open",
+    "actor": "bruno-rest"
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.item.id: isDefined
+  res.body.audit_id: isDefined
+}
+
+script:post-response {
+  bru.setVar("rest_item_id", res.body?.item?.id);
+  bru.setVar("rest_item_create_audit_id", res.body?.audit_id);
+}

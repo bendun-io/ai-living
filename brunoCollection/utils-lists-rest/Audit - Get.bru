@@ -1,0 +1,16 @@
+meta {
+  name: Audit - Get
+  type: http
+  seq: 10
+}
+
+get {
+  url: {{utils_lists_base_url}}/audit/{{rest_item_update_audit_id}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.audit.id: eq {{rest_item_update_audit_id}}
+}
