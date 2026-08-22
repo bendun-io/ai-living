@@ -1,0 +1,45 @@
+meta {
+  name: Item - Create
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{utils_lists_base_url}}/items/create
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "list_id": "{{list_id}}",
+    "title": "First Task",
+    "notes": "Created via Bruno",
+    "status": "open",
+    "actor": "bruno"
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.item.id: isDefined
+  res.body.audit_id: isDefined
+}
+
+script:post-response {
+  const itemId = res.body?.item?.id;
+  const auditId = res.body?.audit_id;
+
+  if (itemId) {
+    bru.setVar("item_id", itemId);
+  }
+
+  if (auditId) {
+    bru.setVar("audit_id", auditId);
+    bru.setVar("item_create_audit_id", auditId);
+  }
+}

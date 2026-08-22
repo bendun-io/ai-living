@@ -140,3 +140,51 @@ These are the key variables read by the service:
 - `MCP_SERVERS`
 - `MEMORY_PROVIDER`
 - `LOG_LEVEL`
+
+## External Utils Lists Tooling Endpoints
+
+The agent can call the dedicated utils-lists service for list lifecycle tooling.
+
+Base URL example:
+
+- `http://localhost:8010`
+
+### Discovery
+
+- `GET /agent/tool-definitions`
+  - Returns machine-readable tool definitions with `name`, `description`, `endpoint`, and `input_schema`.
+
+### List operations
+
+- `POST /lists/get`
+  - Description: fetch one list by id.
+- `POST /lists/search`
+  - Description: search lists by `name` and `description` with pagination.
+- `POST /lists/create`
+  - Description: create a new list.
+- `POST /lists/update`
+  - Description: update list fields.
+- `POST /lists/delete`
+  - Description: soft-delete a list.
+
+### Item operations
+
+- `POST /items/get`
+  - Description: fetch one item by id.
+- `POST /items/search`
+  - Description: search items by `title`, `notes`, and `status` with pagination.
+- `POST /items/create`
+  - Description: create an item in a list.
+- `POST /items/update`
+  - Description: update item fields.
+- `POST /items/delete`
+  - Description: soft-delete an item.
+
+### Audit and revert
+
+- `POST /audit/get`
+  - Description: fetch one audit entry by id.
+- `POST /audit/search`
+  - Description: filter audit entries by operation and target.
+- `POST /audit/revert`
+  - Description: revert exactly one mutation by audit id. A source operation can only be reverted once.

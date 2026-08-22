@@ -1,0 +1,27 @@
+meta {
+  name: List - Get
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{utils_lists_base_url}}/lists/get
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "id": "{{list_id}}",
+    "include_deleted": false
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.list.id: isDefined
+}

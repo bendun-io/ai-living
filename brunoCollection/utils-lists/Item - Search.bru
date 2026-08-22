@@ -1,0 +1,36 @@
+meta {
+  name: Item - Search
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{utils_lists_base_url}}/items/search
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "query": "Task",
+    "include_deleted": false,
+    "limit": 20,
+    "offset": 0
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.items: isDefined
+}
+
+script:post-response {
+  const items = res.body?.items;
+  if (Array.isArray(items) && items.length > 0 && items[0]?.id) {
+    bru.setVar("item_id", items[0].id);
+  }
+}

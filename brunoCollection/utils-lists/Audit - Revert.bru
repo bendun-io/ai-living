@@ -1,0 +1,35 @@
+meta {
+  name: Audit - Revert
+  type: http
+  seq: 13
+}
+
+post {
+  url: {{utils_lists_base_url}}/audit/revert
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "audit_id": "{{audit_id}}",
+    "actor": "bruno"
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.reverted: eq true
+  res.body.reverted_audit_id: isDefined
+}
+
+script:post-response {
+  const revertAuditId = res.body?.reverted_audit_id;
+  if (revertAuditId) {
+    bru.setVar("reverted_audit_id", revertAuditId);
+  }
+}

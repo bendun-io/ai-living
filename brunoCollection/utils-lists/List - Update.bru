@@ -1,0 +1,38 @@
+meta {
+  name: List - Update
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{utils_lists_base_url}}/lists/update
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "id": "{{list_id}}",
+    "name": "Project Tasks Updated",
+    "description": "Updated description",
+    "actor": "bruno"
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.list.id: isDefined
+  res.body.audit_id: isDefined
+}
+
+script:post-response {
+  const auditId = res.body?.audit_id;
+  if (auditId) {
+    bru.setVar("audit_id", auditId);
+    bru.setVar("list_update_audit_id", auditId);
+  }
+}

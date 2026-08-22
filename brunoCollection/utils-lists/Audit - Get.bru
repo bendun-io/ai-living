@@ -1,0 +1,26 @@
+meta {
+  name: Audit - Get
+  type: http
+  seq: 12
+}
+
+post {
+  url: {{utils_lists_base_url}}/audit/get
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "id": "{{audit_id}}"
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.audit.id: isDefined
+}

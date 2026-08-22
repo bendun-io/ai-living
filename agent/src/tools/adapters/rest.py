@@ -21,3 +21,43 @@ class RestTool:
             if response.headers.get("content-type", "").startswith("application/json"):
                 return response.json()
             return {"text": response.text}
+
+
+async def fetch_rest_tool_definitions(base_url: str) -> list[RestTool]:
+    normalized_base = base_url.rstrip("/")
+    discovery_url = f"{normalized_base}/agent/tool-definitions"
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.get(discovery_url)
+        response.raise_for_status()
+        payload = response.json()
+
+    tools: list[RestTool] = []
+    for item in payload.get("tools", []):
+        name = str(item.get("name", "")).strip()
+        endpoint = str(item.get("endpoint", "")).strip()
+        if not name or not endpoint:
+            continue
+
+        method = str(item.get("method", "POST")).upper()
+        description = str(item.get("description", "")).strip()
+        input_schema = item.get("input_schema", {})
+        if not isinstance(input_schema, dict):
+            input_schema = {}
+
+        if endpoint.startswith("http://") or endpoint.startswith("https://"):
+            target_endpoint = endpoint
+        else:
+            target_endpoint = f"{normalized_base}{endpoint if endpoint.startswith('/') else '/' + endpoint}"
+
+        tools.append(
+            RestTool(
+                name=name,
+                description=description,
+                endpoint=target_endpoint,
+                input_schema=input_schema,
+                method=method,
+            )
+        )
+
+    return tools

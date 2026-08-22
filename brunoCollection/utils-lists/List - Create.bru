@@ -1,0 +1,43 @@
+meta {
+  name: List - Create
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{utils_lists_base_url}}/lists/create
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Project Tasks",
+    "description": "Primary working list",
+    "actor": "bruno"
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.list.id: isDefined
+  res.body.audit_id: isDefined
+}
+
+script:post-response {
+  const listId = res.body?.list?.id;
+  const auditId = res.body?.audit_id;
+
+  if (listId) {
+    bru.setVar("list_id", listId);
+  }
+
+  if (auditId) {
+    bru.setVar("audit_id", auditId);
+    bru.setVar("list_create_audit_id", auditId);
+  }
+}

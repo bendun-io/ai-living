@@ -27,6 +27,8 @@ class Settings:
     mcp_servers: list[str] = field(default_factory=list)
     memory_provider: str = "memory"
     log_level: str = "info"
+    enable_utils_lists_tools: bool = False
+    utils_lists_base_url: str = "http://host.docker.internal:8010"
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -40,4 +42,6 @@ class Settings:
             mcp_servers=_parse_csv(os.getenv("MCP_SERVERS")),
             memory_provider=os.getenv("MEMORY_PROVIDER", "memory"),
             log_level=os.getenv("LOG_LEVEL", "info"),
+            enable_utils_lists_tools=_parse_bool(os.getenv("ENABLE_UTILS_LISTS_TOOLS"), False),
+            utils_lists_base_url=os.getenv("UTILS_LISTS_BASE_URL", "http://host.docker.internal:8010"),
         )

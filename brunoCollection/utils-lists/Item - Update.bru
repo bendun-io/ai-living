@@ -1,0 +1,39 @@
+meta {
+  name: Item - Update
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{utils_lists_base_url}}/items/update
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "id": "{{item_id}}",
+    "title": "First Task Updated",
+    "notes": "Updated via Bruno",
+    "status": "done",
+    "actor": "bruno"
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.item.id: isDefined
+  res.body.audit_id: isDefined
+}
+
+script:post-response {
+  const auditId = res.body?.audit_id;
+  if (auditId) {
+    bru.setVar("audit_id", auditId);
+    bru.setVar("item_update_audit_id", auditId);
+  }
+}

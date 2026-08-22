@@ -9,6 +9,7 @@ from src.memory.memory import MemoryStore
 from src.skills.library import SkillLibrary
 from src.tools.adapters.local import build_local_tools
 from src.tools.adapters.mcp import MCPToolAdapter
+from src.tools.adapters.rest import fetch_rest_tool_definitions
 from src.tools.executor import ToolExecutor
 from src.tools.registry import ToolRegistry
 
@@ -33,6 +34,10 @@ class AgentRuntime:
                 adapter = MCPToolAdapter(server_url=server_url)
                 for tool_data in await adapter.discover_tools():
                     registry.register(_DynamicTool(tool_data, adapter))
+
+        if self.settings.enable_utils_lists_tools:
+            for tool in await fetch_rest_tool_definitions(self.settings.utils_lists_base_url):
+                registry.register(tool)
 
         if self.settings.openai_api_key:
             llm_client = OpenAIResponsesClient(api_key=self.settings.openai_api_key, model=self.settings.openai_model)

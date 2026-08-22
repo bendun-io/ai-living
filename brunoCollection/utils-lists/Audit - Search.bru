@@ -1,0 +1,35 @@
+meta {
+  name: Audit - Search
+  type: http
+  seq: 11
+}
+
+post {
+  url: {{utils_lists_base_url}}/audit/search
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "target_type": "list",
+    "limit": 20,
+    "offset": 0
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.entries: isDefined
+}
+
+script:post-response {
+  const entries = res.body?.entries;
+  if (Array.isArray(entries) && entries.length > 0 && entries[0]?.id) {
+    bru.setVar("audit_id", entries[0].id);
+  }
+}
