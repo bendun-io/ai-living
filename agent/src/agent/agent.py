@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 
 from src.callbacks.callback import CallbackClient
 from src.config import Settings
@@ -16,14 +17,21 @@ from src.tools.registry import ToolRegistry
 from .executor import AgentService
 
 
+logger = logging.getLogger(__name__)
+
+
 @dataclass(slots=True)
 class AgentRuntime:
     settings: Settings
     tool_registry: ToolRegistry | None = None
     agent_service: AgentService | None = None
     skill_library: SkillLibrary | None = None
+    utils_lists_discovery_error: str | None = None
+    utils_lists_tools_loaded: int = 0
 
     async def initialize(self) -> None:
+        self.utils_lists_discovery_error = None
+        self.utils_lists_tools_loaded = 0
         self.skill_library = SkillLibrary.default()
         registry = ToolRegistry()
         for tool in build_local_tools(self.skill_library):
@@ -36,8 +44,23 @@ class AgentRuntime:
                     registry.register(_DynamicTool(tool_data, adapter))
 
         if self.settings.enable_utils_lists_tools:
-            for tool in await fetch_rest_tool_definitions(self.settings.utils_lists_base_url):
-                registry.register(tool)
+            try:
+                rest_tools = await fetch_rest_tool_definitions(self.settings.utils_lists_base_url)
+                for tool in rest_tools:
+                    registry.register(tool)
+                self.utils_lists_tools_loaded = len(rest_tools)
+                logger.info(
+                    "Loaded %s utils-lists tools from %s",
+                    self.utils_lists_tools_loaded,
+                    self.settings.utils_lists_base_url,
+                )
+            except Exception as exc:  # noqa: BLE001
+                self.utils_lists_discovery_error = str(exc)
+                logger.warning(
+                    "Failed to discover utils-lists tools from %s: %s",
+                    self.settings.utils_lists_base_url,
+                    exc,
+                )
 
         if self.settings.openai_api_key:
             llm_client = OpenAIResponsesClient(api_key=self.settings.openai_api_key, model=self.settings.openai_model)
@@ -58,6 +81,16 @@ class AgentRuntime:
         if self.agent_service is None:
             await self.initialize()
         return await self.agent_service.run(request)
+
+    def health_snapshot(self) -> dict[str, object]:
+        return {
+            "mcpEnabled": self.settings.enable_mcp,
+            "utilsListsToolsEnabled": self.settings.enable_utils_lists_tools,
+            "utilsListsBaseUrl": self.settings.utils_lists_base_url,
+            "utilsListsDiscoveredTools": self.utils_lists_tools_loaded,
+            "utilsListsDiscoveryError": self.utils_lists_discovery_error,
+            "tools": self.tool_registry.tool_names() if self.tool_registry else [],
+        }
 
 
 @dataclass(slots=True)

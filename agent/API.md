@@ -16,6 +16,10 @@ Returns a lightweight status payload that can be used for liveness checks.
 {
   "status": "ok",
   "mcpEnabled": false,
+  "utilsListsToolsEnabled": true,
+  "utilsListsBaseUrl": "http://utils-lists:8010",
+  "utilsListsDiscoveredTools": 13,
+  "utilsListsDiscoveryError": null,
   "tools": ["echo"]
 }
 ```
@@ -24,6 +28,10 @@ Returns a lightweight status payload that can be used for liveness checks.
 
 - `status`: Always `ok` when the service is reachable.
 - `mcpEnabled`: Boolean flag showing whether MCP tool discovery is enabled.
+- `utilsListsToolsEnabled`: Boolean flag showing whether external list tooling discovery is enabled.
+- `utilsListsBaseUrl`: Base URL used for list tool discovery and execution.
+- `utilsListsDiscoveredTools`: Number of discovered list tools currently registered.
+- `utilsListsDiscoveryError`: Last discovery error string if discovery failed, otherwise `null`.
 - `tools`: List of registered tool names currently loaded by the runtime.
 
 ## `POST /agent/run`
@@ -140,6 +148,16 @@ These are the key variables read by the service:
 - `MCP_SERVERS`
 - `MEMORY_PROVIDER`
 - `LOG_LEVEL`
+- `ENABLE_UTILS_LISTS_TOOLS`
+- `UTILS_LISTS_BASE_URL`
+
+Defaults in Docker Compose use service-name routing inside the shared Docker network:
+
+- `UTILS_LISTS_BASE_URL=http://utils-lists:8010`
+
+For host-routed development, override it with:
+
+- `UTILS_LISTS_BASE_URL=http://host.docker.internal:8010`
 
 ## External Utils Lists Tooling Endpoints
 

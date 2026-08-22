@@ -20,11 +20,7 @@ async def on_startup() -> None:
 
 @app.get("/health")
 async def health() -> dict[str, object]:
-    return {
-        "status": "ok",
-        "mcpEnabled": settings.enable_mcp,
-        "tools": runtime.tool_registry.tool_names() if runtime.tool_registry else [],
-    }
+    return {"status": "ok", **runtime.health_snapshot()}
 
 
 app.include_router(build_run_router(runtime))

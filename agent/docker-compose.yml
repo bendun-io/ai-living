@@ -15,7 +15,7 @@ services:
       MEMORY_PROVIDER: ${MEMORY_PROVIDER:-memory}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       ENABLE_UTILS_LISTS_TOOLS: ${ENABLE_UTILS_LISTS_TOOLS:-false}
-      UTILS_LISTS_BASE_URL: ${UTILS_LISTS_BASE_URL:-http://host.docker.internal:8010}
+      UTILS_LISTS_BASE_URL: ${UTILS_LISTS_BASE_URL:-http://utils-lists:8010}
       SKILLS_DIR: /app/skills
     ports:
       - "8000:8000"
