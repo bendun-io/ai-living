@@ -12,7 +12,7 @@ services:
     ports:
       - "5678:5678"
     networks:
-      - telegram-stack
+      - ai-living-stack
     volumes:
       - n8n_data:/home/node/.n8n
     # etc.
@@ -28,7 +28,7 @@ services:
       - N8N_RUNNERS_EXTERNAL_ALLOW=numpy,pandas,requests,bs4
       # etc.
     networks:
-      - telegram-stack
+      - ai-living-stack
     depends_on:
       - n8n
 
@@ -36,6 +36,6 @@ volumes:
   n8n_data:
 
 networks:
-  telegram-stack:
+  ai-living-stack:
     external: true
-    name: telegram-stack
+    name: ai-living-stack

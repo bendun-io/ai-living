@@ -91,7 +91,7 @@ services:
 
 networks:
   default:
-    name: telegram-stack
+    name: ai-living-stack
 
 volumes:
   kafka-data:
