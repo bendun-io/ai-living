@@ -1,0 +1,27 @@
+meta {
+  name: Audit - Revert
+  type: http
+  seq: 11
+}
+
+post {
+  url: {{utils_lists_base_url}}/audit/{{rest_item_update_audit_id}}/revert
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "actor": "bruno-rest"
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.reverted: eq true
+  res.body.reverted_audit_id: isDefined
+}
