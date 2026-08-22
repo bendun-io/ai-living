@@ -10,6 +10,11 @@ services:
       - N8N_NATIVE_PYTHON_RUNNER=true
       - N8N_RUNNERS_EXTERNAL_ALLOW=numpy,pandas,requests,bs4
       - N8N_SECURE_COOKIE=false
+      - N8N_HOST=192.168.1.135
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - N8N_EDITOR_BASE_URL=http://192.168.1.135:5678
+      - WEBHOOK_URL=http://192.168.1.135:5678/
     ports:
       - "5678:5678"
     networks:
@@ -32,6 +37,13 @@ services:
       - ai-living-stack
     depends_on:
       - n8n
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run --token ${TOKEN}
+    environment:
+      TOKEN: ${CLOUD_FLARE_TUNNEL_TOKEN:-}
+    restart: unless-stopped
 
 volumes:
   n8n_data:
