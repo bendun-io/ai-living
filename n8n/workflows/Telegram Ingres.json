@@ -1,0 +1,280 @@
+{
+  "name": "Telegram Ingres",
+  "nodes": [
+    {
+      "parameters": {
+        "topic": "telegram-updates",
+        "groupId": "telegram-bot",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.kafkaTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "ebb4b0f2-cc7f-4c73-927c-50f527baface",
+      "name": "Kafka Trigger",
+      "credentials": {
+        "kafka": {
+          "id": "8XZQMqglU6W1x103",
+          "name": "Kafka account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Is Voice message').item.json.message.chat.id }}",
+        "text": "=I received: {{$json.text}}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1136,
+        -384
+      ],
+      "id": "3baaa6cf-367a-43da-87c9-f020f4c6c545",
+      "name": "Send a text message",
+      "webhookId": "3f6f35eb-da28-4e15-b92b-a936066186e7",
+      "credentials": {
+        "telegramApi": {
+          "id": "OG38WNWkY8NfCnT2",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.message.chat.id }}",
+        "text": "=I only work with my master.",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        624,
+        192
+      ],
+      "id": "36b5fb2e-3b7f-4ac7-a2b4-88115c518fb3",
+      "name": "Send a text message1",
+      "webhookId": "3f6f35eb-da28-4e15-b92b-a936066186e7",
+      "credentials": {
+        "telegramApi": {
+          "id": "OG38WNWkY8NfCnT2",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "1c22b180-e042-42c7-92f2-7798d04a2537",
+              "leftValue": "={{ $json.message.voice }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        624,
+        -160
+      ],
+      "id": "f5653aca-a57b-4f04-bda4-20e3d88cac94",
+      "name": "Is Voice message"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.message.chat.id }}",
+        "text": "=I received: {{$json.message.text}}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1152,
+        -128
+      ],
+      "id": "c0f76be2-be32-4ac3-bc21-93c23166fe5c",
+      "name": "Send a text message2",
+      "webhookId": "3f6f35eb-da28-4e15-b92b-a936066186e7",
+      "credentials": {
+        "telegramApi": {
+          "id": "OG38WNWkY8NfCnT2",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "26e74d1c-157e-421a-b48e-6b3c572136a8",
+              "leftValue": "={{ $json.message.from.id }}",
+              "rightValue": 7883182252,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        416,
+        0
+      ],
+      "id": "7d60b541-0c1d-4456-b9c3-d15fde5286e2",
+      "name": "Sender verification"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const item = $json;\nconst parsed = JSON.parse(item.message);\nreturn { json: parsed };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "528bb19e-bee9-4f36-bca7-739d3cbd7e4c",
+      "name": "Json Parsing"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://transcribe:8000/transcribe",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "file_id",
+              "value": "={{ $json.message.voice.file_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        848,
+        -288
+      ],
+      "id": "937719ad-e386-43ab-9666-95bdf975e0aa",
+      "name": "HTTP Request"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Kafka Trigger": {
+      "main": [
+        [
+          {
+            "node": "Json Parsing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Voice message": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send a text message2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sender verification": {
+      "main": [
+        [
+          {
+            "node": "Is Voice message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send a text message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Json Parsing": {
+      "main": [
+        [
+          {
+            "node": "Sender verification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "8dbfd2df-e7cc-4d61-aa67-8bf6144857a8",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8c59abd8cd6497dda249fce32c39c431319c3ccfb2feda17ca870c51e02e0d03"
+  },
+  "id": "NOe7uzm6uQVNPz2t",
+  "tags": []
+}
