@@ -27,6 +27,12 @@ services:
 
     volumes:
       - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
 
   webhook:
     build:
@@ -35,12 +41,16 @@ services:
     networks:
       - default
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
     ports:
       - "3000:3000"
 
     environment:
       TELEGRAM_SECRET: J5n3LeIRzJI8AwqHhQqM
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_CONNECT_MAX_ATTEMPTS: ${KAFKA_CONNECT_MAX_ATTEMPTS:-30}
+      KAFKA_CONNECT_RETRY_DELAY_MS: ${KAFKA_CONNECT_RETRY_DELAY_MS:-1500}
 
   transcribe:
     build:
