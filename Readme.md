@@ -22,7 +22,7 @@ Use the generated public HTTPS URL in your webhook configuration.
 Set the Telegram webhook with the command below (replace the URL with your current ngrok URL):
 
 ```bash
-curl "https://api.telegram.org/bot8831100892:AAFR0GPBchSVl-4-vb5p4Zrm5ebdr4XnCgk/setWebhook?url=https://d4c8-94-31-75-139.ngrok-free.app/telegram/webhook&secret_token=J5n3LeIRzJI8AwqHhQqM"
+curl "https://api.telegram.org/bot8831100892:AAFR0GPBchSVl-4-vb5p4Zrm5ebdr4XnCgk/setWebhook?url=https://telegram.bendun.io/telegram/webhook&secret_token=XXX"
 ```
 
 > Reminder: run the webhook setup again whenever your ngrok URL changes.

@@ -1,5 +1,5 @@
-const DEFAULT_AGENT_BASE_URL = 'http://localhost:8000';
-const DEFAULT_TRANSCRIBE_BASE_URL = 'http://localhost:3010';
+const DEFAULT_AGENT_BASE_URL = 'http://192.168.1.135:8000';
+const DEFAULT_TRANSCRIBE_BASE_URL = 'http://192.168.1.135:3010';
 
 const threadListEl = document.getElementById('threadList');
 const messagesEl = document.getElementById('messages');
