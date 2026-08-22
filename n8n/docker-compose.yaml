@@ -9,6 +9,7 @@ services:
       - N8N_RUNNERS_AUTH_TOKEN=xKkErhc5iFSLqad7uNKS
       - N8N_NATIVE_PYTHON_RUNNER=true
       - N8N_RUNNERS_EXTERNAL_ALLOW=numpy,pandas,requests,bs4
+      - N8N_SECURE_COOKIE=false
     ports:
       - "5678:5678"
     networks:
