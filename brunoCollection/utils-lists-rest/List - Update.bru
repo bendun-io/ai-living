@@ -1,0 +1,32 @@
+meta {
+  name: List - Update
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{utils_lists_base_url}}/lists/{{rest_list_id}}
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "description": "Updated via Bruno REST",
+    "actor": "bruno-rest"
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.list.description: eq Updated via Bruno REST
+  res.body.audit_id: isDefined
+}
+
+script:post-response {
+  bru.setVar("rest_audit_id", res.body?.audit_id);
+}

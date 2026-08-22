@@ -1,0 +1,16 @@
+meta {
+  name: Item - Search
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{utils_lists_base_url}}/lists/{{rest_list_id}}/items?query=REST
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.items: isDefined
+}

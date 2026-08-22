@@ -1,0 +1,32 @@
+meta {
+  name: Item - Update
+  type: http
+  seq: 8
+}
+
+patch {
+  url: {{utils_lists_base_url}}/items/{{rest_item_id}}
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "status": "in_progress",
+    "actor": "bruno-rest"
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.item.status: eq in_progress
+  res.body.audit_id: isDefined
+}
+
+script:post-response {
+  bru.setVar("rest_item_update_audit_id", res.body?.audit_id);
+}

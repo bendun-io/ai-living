@@ -1,0 +1,15 @@
+meta {
+  name: Item - Delete
+  type: http
+  seq: 12
+}
+
+delete {
+  url: {{utils_lists_base_url}}/items/{{rest_item_id}}?actor=bruno-rest
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: oneOf 200 409
+}
