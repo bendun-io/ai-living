@@ -9,6 +9,7 @@ services:
       HOSTNAME: ubuntu-server
       BESZEL_HUB_URL: ${BESZEL_HUB_URL:-http://127.0.0.1:8090}
       BESZEL_TOKEN: ${BESZEL_TOKEN:-changeme}
+      KEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIM3DJlGiLLrIN/i0OGdkzZYU4pm2T7iYvX2u+tn7Onyq
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /:/host:ro
