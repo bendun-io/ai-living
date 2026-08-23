@@ -40,15 +40,14 @@ body {
 }
 
 .container {
-  display: grid;
-  grid-template-columns: 240px 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
   flex: 1;
   min-height: 0;
   padding: 10px;
 }
 
-.threads,
 .details {
   border: 1px solid var(--border);
   background: rgba(17, 24, 39, 0.86);
@@ -58,34 +57,11 @@ body {
   flex-direction: column;
 }
 
-.threads h2,
 .details h2 {
   margin: 0;
   padding: 10px 12px;
   border-bottom: 1px solid var(--border);
   font-size: 0.92rem;
-}
-
-#threadList {
-  margin: 0;
-  padding: 8px;
-  list-style: none;
-  overflow: auto;
-}
-
-#threadList li {
-  padding: 8px;
-  border-radius: 8px;
-  cursor: pointer;
-  color: var(--muted);
-  border: 1px solid transparent;
-}
-
-#threadList li:hover,
-#threadList li.active {
-  color: var(--text);
-  border-color: var(--accent);
-  background: rgba(56, 189, 248, 0.1);
 }
 
 .entries {
@@ -121,10 +97,4 @@ body {
 .empty {
   color: var(--muted);
   font-size: 0.86rem;
-}
-
-@media (max-width: 760px) {
-  .container {
-    grid-template-columns: 1fr;
-  }
 }

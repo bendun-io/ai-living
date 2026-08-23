@@ -1,4 +1,3 @@
-const threadListEl = document.getElementById('threadList');
 const detailsTitleEl = document.getElementById('detailsTitle');
 const entriesEl = document.getElementById('entries');
 
@@ -33,24 +32,6 @@ function formatTrace(debug) {
   }
 
   return lines.join('\n');
-}
-
-function renderThreads() {
-  threadListEl.innerHTML = '';
-
-  for (const thread of state.threads) {
-    const li = document.createElement('li');
-    li.textContent = thread.title;
-    if (thread.id === state.currentThreadId) {
-      li.classList.add('active');
-    }
-    li.addEventListener('click', () => {
-      state.currentThreadId = thread.id;
-      renderThreads();
-      renderDetails();
-    });
-    threadListEl.appendChild(li);
-  }
 }
 
 function renderDetails() {
@@ -97,12 +78,6 @@ function renderDetails() {
 function setState(next) {
   state.currentThreadId = next?.currentThreadId || null;
   state.threads = Array.isArray(next?.threads) ? next.threads : [];
-
-  if (!state.currentThreadId && state.threads.length > 0) {
-    state.currentThreadId = state.threads[0].id;
-  }
-
-  renderThreads();
   renderDetails();
 }
 

@@ -12,6 +12,7 @@ const serviceStatusDotEl = document.getElementById('serviceStatusDot');
 const serviceStatusTextEl = document.getElementById('serviceStatusText');
 const newChatButton = document.getElementById('newChatButton');
 
+const DEFAULT_THREAD_TITLE = 'New chat';
 const HEALTH_CHECK_INTERVAL_MS = 5000;
 const serviceHealthTargets = [
   { name: 'agent', url: `${DEFAULT_AGENT_BASE_URL}/health` },
@@ -99,7 +100,7 @@ function setProcessingUi() {
   setRecordingStatus('Transcribing and sending your message...', 'processing');
 }
 
-function createThread(title = 'New chat') {
+function createThread(title = DEFAULT_THREAD_TITLE) {
   const id = `thread-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const thread = {
     id,
@@ -118,8 +119,26 @@ function renderThreads() {
   threadListEl.innerHTML = '';
   state.threads.forEach((thread) => {
     const item = document.createElement('li');
-    item.textContent = thread.title;
     item.dataset.threadId = thread.id;
+
+    const titleEl = document.createElement('span');
+    titleEl.className = 'thread-title';
+    titleEl.textContent = thread.title;
+    item.appendChild(titleEl);
+
+    const deleteButton = document.createElement('button');
+    deleteButton.className = 'thread-delete-button';
+    deleteButton.textContent = '✕';
+    deleteButton.setAttribute('aria-label', `Delete ${thread.title}`);
+    deleteButton.title = 'Delete chat';
+    deleteButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (window.confirm(`Delete "${thread.title}"?`)) {
+        deleteThread(thread.id);
+      }
+    });
+    item.appendChild(deleteButton);
+
     item.addEventListener('click', () => {
       state.currentThreadId = thread.id;
       renderMessages();
@@ -127,6 +146,28 @@ function renderThreads() {
     });
     threadListEl.appendChild(item);
   });
+}
+
+function deleteThread(threadId) {
+  const index = state.threads.findIndex((thread) => thread.id === threadId);
+  if (index === -1) {
+    return;
+  }
+
+  state.threads.splice(index, 1);
+
+  if (state.currentThreadId === threadId) {
+    state.currentThreadId = state.threads.length > 0 ? state.threads[0].id : null;
+  }
+
+  if (state.threads.length === 0) {
+    createThread();
+    return;
+  }
+
+  renderThreads();
+  renderMessages();
+  publishDebugState();
 }
 
 function renderMessages() {
@@ -187,6 +228,49 @@ async function openDebugWindow() {
   }
 }
 
+async function generateThreadTitle(thread, userText, assistantText) {
+  if (!thread || thread.title !== DEFAULT_THREAD_TITLE) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`${DEFAULT_AGENT_BASE_URL}/agent/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        conversationId: `title-${thread.id}`,
+        user: 'user',
+        message:
+          'Write a short chat title (3-6 words, no quotes, no trailing punctuation) that summarizes this exchange:\n' +
+          `User: ${userText}\nAssistant: ${assistantText}`,
+        attachments: [],
+        metadata: {
+          tenant: 'desktop-electron',
+          language: 'en',
+          extra: { source: 'title-generation' },
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      return;
+    }
+
+    const payload = await response.json();
+    const title = (payload.result || '').trim().replace(/^["'“”]+|["'“”]+$/g, '');
+
+    if (!title || thread.title !== DEFAULT_THREAD_TITLE) {
+      return;
+    }
+
+    thread.title = title.length > 60 ? `${title.slice(0, 57)}...` : title;
+    renderThreads();
+    publishDebugState();
+  } catch {
+    // Keep the default title if generation fails.
+  }
+}
+
 async function sendTextMessage() {
   const text = inputEl.value.trim();
   if (!text) {
@@ -194,9 +278,10 @@ async function sendTextMessage() {
   }
 
   if (!state.currentThreadId) {
-    createThread('New chat');
+    createThread();
   }
 
+  const threadId = state.currentThreadId;
   addMessage('user', text);
   inputEl.value = '';
 
@@ -224,6 +309,11 @@ async function sendTextMessage() {
     const payload = await response.json();
     const answer = payload.result || 'No response';
     addMessage('assistant', answer, payload.debug || null);
+
+    const thread = state.threads.find((item) => item.id === threadId);
+    if (thread && thread.messages.length === 2) {
+      generateThreadTitle(thread, text, answer);
+    }
   } catch (error) {
     addMessage('assistant', `Error: ${error.message}`);
   }
@@ -337,10 +427,10 @@ inputEl.addEventListener('keydown', (event) => {
 recordButton.addEventListener('click', recordAudio);
 debugButton.addEventListener('click', openDebugWindow);
 newChatButton.addEventListener('click', () => {
-  createThread('New chat');
+  createThread();
 });
 
-createThread('New chat');
+createThread();
 setIdleRecordUi();
 refreshServiceStatus();
 setInterval(refreshServiceStatus, HEALTH_CHECK_INTERVAL_MS);
