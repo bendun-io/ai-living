@@ -17,7 +17,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - ai-living
+      - ai-living-stack
 
   utils-lists:
     build:
@@ -40,11 +40,12 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - ai-living
+      - ai-living-stack
 
 volumes:
   postgres_data:
 
 networks:
-  ai-living:
-    name: ai-living
+  ai-living-stack:
+    external: true
+    name: ai-living-stack
