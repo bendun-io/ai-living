@@ -5,6 +5,8 @@ from typing import Any
 from fastapi import APIRouter
 
 from app.core import (
+    AGENT_EXCLUDED_TOOLS,
+    AGENT_TOOL_DEFINITIONS,
     AuditRevertRequest,
     AuditSearchRequest,
     IdRequest,
@@ -15,7 +17,6 @@ from app.core import (
     ListDeleteRequest,
     ListUpdateRequest,
     SearchRequest,
-    TOOL_DEFINITIONS,
     create_item,
     create_list,
     delete_item,
@@ -39,13 +40,15 @@ def health() -> dict[str, Any]:
     return {
         "status": "ok",
         "service": "utils-lists",
-        "tools": [tool["name"] for tool in TOOL_DEFINITIONS],
+        "tools": [tool["name"] for tool in AGENT_TOOL_DEFINITIONS],
+        "agentExcludedTools": sorted(AGENT_EXCLUDED_TOOLS),
     }
 
 
 @router.get("/agent/tool-definitions")
 def agent_tool_definitions() -> dict[str, Any]:
-    return {"tools": TOOL_DEFINITIONS}
+    """Tool catalogue advertised to agents. Excludes AGENT_EXCLUDED_TOOLS."""
+    return {"tools": AGENT_TOOL_DEFINITIONS}
 
 
 @router.post("/lists/get")
@@ -136,6 +139,8 @@ def audit_search(request: AuditSearchRequest) -> dict[str, Any]:
     )
 
 
+# Reachable over HTTP for the UI and operators, but absent from /agent/tool-definitions,
+# so no agent can discover or call it. See AGENT_EXCLUDED_TOOLS in app/core.py.
 @router.post("/audit/revert")
 def audit_revert(request: AuditRevertRequest) -> dict[str, Any]:
     return revert_audit(audit_id=request.audit_id, actor=request.actor)

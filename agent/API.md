@@ -18,9 +18,10 @@ Returns a lightweight status payload that can be used for liveness checks.
   "mcpEnabled": false,
   "utilsListsToolsEnabled": true,
   "utilsListsBaseUrl": "http://utils-lists:8010",
-  "utilsListsDiscoveredTools": 13,
+  "utilsListsDiscoveredTools": 12,
   "utilsListsDiscoveryError": null,
-  "tools": ["echo"]
+  "tools": ["echo"],
+  "toolNameCollisions": []
 }
 ```
 
@@ -33,6 +34,9 @@ Returns a lightweight status payload that can be used for liveness checks.
 - `utilsListsDiscoveredTools`: Number of discovered list tools currently registered.
 - `utilsListsDiscoveryError`: Last discovery error string if discovery failed, otherwise `null`.
 - `tools`: List of registered tool names currently loaded by the runtime.
+- `toolNameCollisions`: One entry per tool-name clash seen at registration, as
+  `{"name", "replaced", "replacedBy"}`. Empty in a healthy setup; a non-empty list means one tool
+  name was registered twice and the later registration won.
 
 ## `POST /agent/run`
 
@@ -206,3 +210,6 @@ Base URL example:
   - Description: filter audit entries by operation and target.
 - `POST /audit/revert`
   - Description: revert exactly one mutation by audit id. A source operation can only be reverted once.
+  - **Not exposed to the agent.** It is excluded from `/agent/tool-definitions` by
+    `AGENT_EXCLUDED_TOOLS`, so the agent cannot discover or call it. The endpoint stays available
+    to the web UI and operators.

@@ -50,17 +50,22 @@ class SkillLibrary:
             if candidate.exists():
                 return candidate
 
-        repo_root = Path(__file__).resolve().parents[3]
-        candidate = repo_root / "skills"
-        if candidate.exists():
-            return candidate
+        here = Path(__file__).resolve()
 
-        for parent in [Path(__file__).resolve().parents[i] for i in range(0, 6)]:
+        # Walk every ancestor rather than a fixed depth: indexing a fixed range raises
+        # IndexError when the tree is shallower than expected -- inside the container this
+        # module sits at /app/src/skills/library.py with only four parents -- and that
+        # crash pre-empted the fallback catalogue this method exists to fall back to.
+        #
+        # Require catalog.yml rather than mere existence, so the walk identifies a real
+        # catalogue and cannot match this package's own src/skills/ directory, which would
+        # otherwise shadow the repo-root one because it is nearer.
+        for parent in here.parents:
             candidate = parent / "skills"
-            if candidate.exists():
+            if (candidate / "catalog.yml").is_file():
                 return candidate
 
-        return repo_root / "skills"
+        return here.parents[min(3, len(here.parents) - 1)] / "skills"
 
     @staticmethod
     def _fallback_skills() -> list[Skill]:

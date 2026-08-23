@@ -430,6 +430,16 @@ TOOL_DEFINITIONS = [
     },
 ]
 
+# Tools deliberately withheld from the agent. Reverting is an irreversible administrative
+# action, so it stays a human decision: the endpoints remain callable over HTTP for the web
+# UI and operators, but the tool is never advertised to a planner and therefore never gets
+# registered as something an LLM can choose.
+AGENT_EXCLUDED_TOOLS = {"audit_revert"}
+
+AGENT_TOOL_DEFINITIONS = [
+    tool for tool in TOOL_DEFINITIONS if tool["name"] not in AGENT_EXCLUDED_TOOLS
+]
+
 
 def get_list(list_id: uuid.UUID, include_deleted: bool = False) -> dict[str, Any]:
     with _connect() as conn:

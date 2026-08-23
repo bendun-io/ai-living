@@ -29,7 +29,8 @@ orchestration layer — n8n owns triggers, scheduling, retries, integrations and
                    │
                    ▼
             utils/lists-service
-            (lists, items, audit)
+            (lists, items, audit —
+             revert withheld)
 
    Agent ──► POST $CALLBACK_URL ──► n8n callback workflow
 ```
@@ -168,13 +169,29 @@ class ToolProtocol(Protocol):
     async def execute(self, arguments: dict[str, Any]) -> Any: ...
 ```
 
-`ToolRegistry` is a name-keyed dict with `register`, `get`, `has_tool`, `tool_names` and
-`definitions()` (which projects tools into `ToolSchema` objects for the LLM). Registration is
-last-write-wins: a discovered tool can silently shadow a local tool with the same name.
+`ToolRegistry` is a name-keyed dict with `register`, `get`, `find`, `has_tool`, `tool_names`,
+`collisions()` and `definitions()` (which projects tools into `ToolSchema` objects for the LLM).
 
-`ToolExecutor` wraps invocation so a failing tool becomes a structured
-`ToolResult(ok=False, error=...)` rather than an exception — **except** for the registry lookup
-itself, which happens outside the `try` block.
+Registration is last-write-wins, but not silent: if a name is already taken, the clash is appended
+to a collision list as `{"name", "replaced", "replacedBy"}` (the tool name plus both class names)
+and logged at WARNING. `collisions()` returns a copy of that list, and it is surfaced as
+`toolNameCollisions` in `GET /health`. The replacement still happens — refusing it would make the
+winner depend on discovery order, which is what made the original behaviour hard to reason about —
+so the design goal is visibility, not prevention.
+
+`get()` raises `KeyError` for callers wanting a strict lookup; `find()` returns `None` instead.
+
+`ToolExecutor` wraps invocation so every outcome becomes a structured `ToolResult`:
+
+| Outcome | Result |
+| --- | --- |
+| Success | `ok=True`, `output=<tool return value>` |
+| Tool raised | `ok=False`, `error=str(exception)` |
+| Name not registered | `ok=False`, `error="Unknown tool 'x'. Available tools: …"` |
+
+The unknown-tool case uses `find()` and never raises, so a hallucinated or stale tool name is a
+recoverable step rather than a failed run. The error text lists the registered tool names and is
+fed back to the planner as tool output, giving it what it needs to retry with a real name.
 
 ### 5.1 Local adapter — [`adapters/local.py`](../src/tools/adapters/local.py)
 
@@ -201,9 +218,16 @@ Entries missing `name` or `endpoint` are skipped. Each `execute` opens a fresh
 `httpx.AsyncClient` with a 30 s timeout, POSTs the arguments as JSON, raises for non-2xx, and
 returns parsed JSON (or `{"text": ...}` for non-JSON responses).
 
-The counterpart service, [`utils/lists-service`](../../utils/lists-service), currently publishes
-13 tools: `lists_get|search|create|update|delete`, `items_get|search|create|update|delete`, and
-`audit_get|search|revert`.
+The counterpart service, [`utils/lists-service`](../../utils/lists-service), defines 13 tools but
+publishes only 12 to agents: `lists_get|search|create|update|delete`,
+`items_get|search|create|update|delete`, and `audit_get|search`.
+
+`audit_revert` is deliberately withheld. `AGENT_EXCLUDED_TOOLS` in the service's `core.py` filters
+`TOOL_DEFINITIONS` into `AGENT_TOOL_DEFINITIONS`, and only the latter is served from
+`/agent/tool-definitions` — so the agent never discovers it and cannot register or call it.
+Reverting a mutation is irreversible and stays a human action, available over HTTP to the web UI
+and operators. The exclusion lives in the service that owns the capability rather than in an agent
+allow-list, so a new agent gets the safe catalogue by default.
 
 This is the key extensibility seam: **a new backing service needs no agent code change**, only a
 `/agent/tool-definitions` endpoint and an environment variable.
@@ -259,10 +283,15 @@ its intent precedence is order-sensitive (see the review doc).
 [`skills/`](../../skills) directory — `catalog.yml` for `name`/`summary`/`keywords`, and
 `<name>/Skill.md` for the long description. Resolution order for the directory:
 
-1. `$SKILLS_DIR` (mounted at `/app/skills` by Docker Compose)
-2. `<repo root>/skills`
-3. any `skills/` folder in the first six parent directories
-4. otherwise an in-code fallback catalog of two skills
+1. `$SKILLS_DIR` if it exists (mounted at `/app/skills` by Docker Compose)
+2. otherwise the nearest ancestor directory containing a `skills/catalog.yml`
+3. otherwise an in-code fallback catalog of two skills
+
+Step 2 walks `Path(__file__).resolve().parents` to its natural end rather than a fixed depth, and
+tests for `catalog.yml` rather than for a directory called `skills`. Both details matter: a fixed
+range raised `IndexError` in the container, where the module has only four parents, and a bare
+existence check matches `agent/src/skills` — this package's own directory — before the repo-root
+catalogue.
 
 Skills are injected in two ways: every skill's one-line summary is appended to the system prompt
 via `brief_context()`, and the `search_skills` tool lets the model pull full descriptions on
@@ -331,9 +360,17 @@ Booleans accept `1/true/yes/on`. Lists are comma-separated with whitespace trimm
 
 [`Dockerfile`](../Dockerfile): `python:3.11-slim`, installs
 [`requirements.txt`](../requirements.txt) (FastAPI 0.115.6, uvicorn 0.34.0, httpx 0.28.1,
-openai 1.59.7, PyYAML 6.0.2), copies only `src/`, exposes 8000, runs
-`uvicorn src.app:app --host 0.0.0.0 --port 8000` as root. There is no `HEALTHCHECK` and no
-non-root user.
+openai 1.59.7, PyYAML 6.0.2), copies only `src/`, exposes 8000, and runs
+`uvicorn src.app:app --host 0.0.0.0 --port 8000`.
+
+It runs as the unprivileged `agent` account (uid pinned to 10001, so bind-mounted files keep a
+predictable owner across rebuilds) and carries a `HEALTHCHECK` that polls `/health` every 15s with
+a 20s start period. The probe uses `python -c` with `urllib` rather than `curl`, which the slim
+base does not ship; `urlopen` raises on a non-2xx status, so a process that is up but answering
+with an error reports unhealthy.
+
+Note this is liveness, not readiness: `/health` returns `status: "ok"` even when tool discovery
+failed, so a container can be `healthy` with no tools registered.
 
 [`docker-compose.yml`](../docker-compose.yml): one `agent` service on the shared external-style
 `ai-living` network, host port `8000:8000`, `../skills` mounted read-only at `/app/skills`, and
@@ -365,6 +402,7 @@ The `*_smoke.py` naming does not match pytest's default discovery patterns (`tes
 | I want to… | Change needed |
 | --- | --- |
 | Add a backing service as tools | Publish `/agent/tool-definitions`, set an env var. **No agent code.** |
+| Withhold a tool from agents | Add its name to that service's `AGENT_EXCLUDED_TOOLS`. **No agent code.** |
 | Add an in-process tool | Add a dataclass to `adapters/local.py`, list it in `build_local_tools` |
 | Add a skill | Add an entry to `skills/catalog.yml` and a `Skill.md` |
 | Swap the LLM provider | New class with `.plan(messages, tools)`, one branch in `initialize()` |

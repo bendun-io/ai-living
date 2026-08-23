@@ -36,9 +36,10 @@ Liveness plus a snapshot of what the runtime discovered at startup.
   "mcpEnabled": false,
   "utilsListsToolsEnabled": true,
   "utilsListsBaseUrl": "http://utils-lists:8010",
-  "utilsListsDiscoveredTools": 13,
+  "utilsListsDiscoveredTools": 12,
   "utilsListsDiscoveryError": null,
-  "tools": ["audit_get", "audit_revert", "audit_search", "echo", "items_create", "..."]
+  "tools": ["audit_get", "audit_search", "echo", "items_create", "..."],
+  "toolNameCollisions": []
 }
 ```
 
@@ -51,6 +52,7 @@ Liveness plus a snapshot of what the runtime discovered at startup.
 | `utilsListsDiscoveredTools` | int | Count of REST tools registered at startup |
 | `utilsListsDiscoveryError` | string \| null | Last discovery error, if discovery failed |
 | `tools` | string[] | All registered tool names, sorted |
+| `toolNameCollisions` | object[] | One entry per name clash seen during registration: `{"name", "replaced", "replacedBy"}`, the tool name plus the class names of the loser and winner. `[]` normally |
 
 Behavioural notes:
 
@@ -60,6 +62,9 @@ Behavioural notes:
 - The payload does **not** reveal whether the OpenAI planner or the offline `LocalLLMClient` is
   active.
 - If a request arrives before the startup event completes, `tools` is `[]`.
+- A non-empty `toolNameCollisions` means two sources registered the same tool name and the later
+  registration won. The agent keeps running; treat it as a misconfiguration to investigate, since a
+  discovered remote tool may have shadowed a local one.
 
 ### 1.2 `POST /agent/run`
 
@@ -138,6 +143,9 @@ Unknown top-level fields are accepted and dropped (default Pydantic behaviour).
   Detect it by comparing `result` to the request `message` while `toolLog` is non-empty.
 - Tool failure: a failing tool does **not** fail the request. It appears as
   `toolLog[].result.ok == false` and the model gets the error text as tool output.
+- Unknown tool: a name the registry does not know is handled the same way, with
+  `error: "Unknown tool 'x'. Available tools: …"`. The planner receives the list of real names and
+  can retry within the same run.
 
 **Error responses**
 
@@ -149,10 +157,11 @@ Unknown top-level fields are accepted and dropped (default Pydantic behaviour).
 The route has no exception handling of its own, so these propagate as bare 500s **and no callback
 is sent**. Known triggers:
 
-- The planner requests a tool name that is not registered — the registry lookup raises `KeyError`
-  outside the executor's `try` block.
 - The OpenAI call fails (auth, rate limit, network, timeout).
 - The model returns tool-call arguments that are not valid JSON.
+
+An unregistered tool name is *not* in this list any more — it is returned as a failed `ToolResult`
+and the run continues.
 
 A caller waiting on the callback rather than the response will hang in these cases.
 
@@ -218,6 +227,10 @@ Contract as implemented in [`adapters/rest.py`](../src/tools/adapters/rest.py):
 | `description` | no | Passed to the LLM verbatim |
 | `input_schema` | no | Must be an object; anything else is replaced with `{}` |
 
+A publishing service may withhold tools from agents while keeping their HTTP endpoints live: keep
+the definition out of this response and it is never discovered. `utils-lists` does this for
+`audit_revert` via `AGENT_EXCLUDED_TOOLS`.
+
 Discovery uses a 30 s timeout and raises for non-2xx. A failure is caught by the runtime, recorded
 in `utilsListsDiscoveryError`, and the agent starts **without** those tools. There is no retry and
 no re-discovery endpoint — recovery requires a restart.
@@ -243,6 +256,8 @@ the only validator.
 
 Base URL `http://utils-lists:8010` in-network, `http://localhost:8010` from the host.
 
+**12 of its 13 tools are advertised to agents.**
+
 | Tool | Endpoint | Effect |
 | --- | --- | --- |
 | `lists_get` | `POST /lists/get` | Fetch one list by id |
@@ -257,11 +272,17 @@ Base URL `http://utils-lists:8010` in-network, `http://localhost:8010` from the 
 | `items_delete` | `POST /items/delete` | Soft-delete an item |
 | `audit_get` | `POST /audit/get` | Fetch one audit entry |
 | `audit_search` | `POST /audit/search` | Filter audit entries by operation/target |
-| `audit_revert` | `POST /audit/revert` | Revert exactly one mutation; each source op is revertible once |
+| ~~`audit_revert`~~ | `POST /audit/revert` | **Withheld from agents.** Endpoint stays live for the web UI and operators; the tool is filtered out of `/agent/tool-definitions` by `AGENT_EXCLUDED_TOOLS`, so no agent can discover or call it |
 
 Mutating tools take an `actor` field; the agent's offline planner always sends `"agent"`.
-**All 13 are exposed to the model with equal standing** — including the destructive ones. There is
-no allow-list, confirmation step, or per-tenant scoping.
+
+The 12 advertised tools are exposed to the model with equal standing, **including `lists_delete`
+and `items_delete`**. There is still no allow-list, confirmation step, or per-tenant scoping — only
+`audit_revert` is withheld, because it is the one irreversible operation. The deletes are
+soft-deletes and themselves revertible by a human.
+
+The lists service's own `GET /health` reports both sides of this: `tools` lists what agents can
+see, `agentExcludedTools` lists what is deliberately withheld.
 
 ### 2.4 MCP (not functional)
 
@@ -381,3 +402,7 @@ For host-routed development use `UTILS_LISTS_BASE_URL=http://host.docker.interna
    `skills/` catalogue to see what was available.
 7. **Restart the agent after `utils-lists` restarts** if discovery may have raced — check
    `/health.utilsListsDiscoveredTools`.
+8. **Alert on a non-empty `/health.toolNameCollisions`.** It means one tool name was registered
+   twice and the later source won, which can silently change what a tool does.
+9. **Do not build a revert flow through the agent.** `audit_revert` is withheld by design; call
+   `POST /audit/{id}/revert` on the lists service from an n8n step with a human in the loop.

@@ -90,6 +90,7 @@ class AgentRuntime:
             "utilsListsDiscoveredTools": self.utils_lists_tools_loaded,
             "utilsListsDiscoveryError": self.utils_lists_discovery_error,
             "tools": self.tool_registry.tool_names() if self.tool_registry else [],
+            "toolNameCollisions": self.tool_registry.collisions() if self.tool_registry else [],
         }
 
 

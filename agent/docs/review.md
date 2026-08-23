@@ -18,7 +18,8 @@ What's missing is everything between "the happy path works" and "I can leave thi
 no authentication in front of destructive tools, several correctness bugs in the loop that only
 surface on multi-step runs, and an offline planner that silently misroutes mutations.
 
-**Blocking for anything beyond local use:** [S1](#s1), [S2](#s2), [C1](#c1), [C2](#c2).
+**Blocking for anything beyond local use:** [S1](#s1), [C1](#c1). [S2](#s2) is partly addressed
+and [C2](#c2) is closed.
 
 ---
 
@@ -27,9 +28,10 @@ surface on multi-step runs, and an offline planner that silently misroutes mutat
 | # | Finding | Severity | Effort |
 | --- | --- | --- | --- |
 | [S1](#s1) | No authentication on `/agent/run`, which can mutate and delete data | Critical | S |
-| [S2](#s2) | Destructive tools (`*_delete`, `audit_revert`) exposed with no guard | Critical | S |
+| [S2](#s2) | ⚠️ **Partly fixed** — `audit_revert` withheld; `*_delete` still unguarded | Critical | S |
 | [C1](#c1) | Offline planner misroutes item operations to list operations — **verified** | Critical | M |
-| [C2](#c2) | Unknown tool name raises `KeyError` → 500, no callback | High | XS |
+| [C2](#c2) | ✅ **Fixed** — unknown tool name raised `KeyError` → 500, no callback | High | XS |
+| [C6](#c6) | ✅ **Fixed** — startup crashed when the skills catalogue was not found | High | XS |
 | [C3](#c3) | Malformed tool-call arguments corrupt the transcript — **verified** | High | XS |
 | [C4](#c4) | `tool_call.id` dropped; parallel calls to one tool collide | High | XS |
 | [C5](#c5) | Loop exhaustion silently returns the user's own message | High | XS |
@@ -42,13 +44,13 @@ surface on multi-step runs, and an offline planner that silently misroutes mutat
 | [O2](#o2) | Silent degradation to the offline planner is invisible in `/health` | Medium | XS |
 | [O3](#o3) | Almost no observability: no correlation id, no timings, no LLM logging | Medium | S |
 | [O4](#o4) | Raw tool arguments leak into callbacks and logs | Medium | S |
-| [O5](#o5) | Container runs as root, no `HEALTHCHECK` | Medium | XS |
+| [O5](#o5) | ✅ **Fixed** — container ran as root with no `HEALTHCHECK` | Medium | XS |
 | [Q1](#q1) | Tests aren't discoverable by pytest and aren't in CI | Medium | S |
 | [Q2](#q2) | ✅ **Fixed** — `debug.skillsRead` reported every skill, not the ones used | Low | XS |
 | [Q3](#q3) | `tool_context` is built and thrown away | Low | XS |
 | [Q4](#q4) | `OpenAIResponsesClient` doesn't use the Responses API | Low | XS |
 | [Q5](#q5) | MCP adapter is a stub that fails open | Low | S |
-| [Q6](#q6) | Registry allows silent name collisions | Low | XS |
+| [Q6](#q6) | ✅ **Fixed** — registry allowed *silent* name collisions | Low | XS |
 | [Q7](#q7) | Deprecated `@app.on_event`; racy lazy `initialize()` | Low | XS |
 | [Q8](#q8) | New `httpx.AsyncClient` per call | Low | XS |
 | [Q9](#q9) | `AGENT_HOST` / `AGENT_PORT` are read but have no effect | Low | XS |
@@ -73,21 +75,44 @@ consults them for authorisation.
 agent over the `ai-living` Docker network. Longer term, derive tool scope from `metadata.tenant`
 so a tenant can only touch its own data.
 
-### <a id="s2"></a>S2 — Destructive tools exposed with no guard · Critical
+### <a id="s2"></a>S2 — Destructive tools exposed with no guard · Critical · ⚠️ Partly fixed
 
-All 13 discovered tools are registered with equal standing, including `lists_delete`,
+**Was:** all 13 discovered tools were registered with equal standing, including `lists_delete`,
 `items_delete` and `audit_revert`. A model hallucination, a prompt injection in a list name that
-comes back through `lists_search`, or a misrouted intent ([C1](#c1)) all lead directly to a
+comes back through `lists_search`, or a misrouted intent ([C1](#c1)) all led straight to a
 mutation with no confirmation step.
 
-Note the injection path is real: tool output is fed straight back into `messages` as content the
+The injection path is real and still is: tool output is fed back into `messages` as content the
 model reads, and list/item names are user-controlled.
 
-**Fix, cheapest first:**
-1. Config-driven allow-list of tool names (`AGENT_ALLOWED_TOOLS`), default read-only.
-2. Mark destructive tools in the discovery contract (`"destructive": true`) and require an
-   explicit `metadata.extra.allow_mutations` flag on the request to register them.
-3. For irreversible operations, return a confirmation token the caller must echo back.
+**Now:** the irreversible one is gone. `audit_revert` is withheld at the source, so the service
+that owns the capability decides who may see it rather than the agent filtering after the fact:
+
+```python
+# utils/lists-service/app/core.py
+AGENT_EXCLUDED_TOOLS = {"audit_revert"}
+AGENT_TOOL_DEFINITIONS = [t for t in TOOL_DEFINITIONS if t["name"] not in AGENT_EXCLUDED_TOOLS]
+```
+
+`GET /agent/tool-definitions` now serves `AGENT_TOOL_DEFINITIONS` — 12 tools instead of 13 — so the
+agent cannot discover, register, or call revert. The lists service's `GET /health` reports the
+agent-visible names plus an explicit `agentExcludedTools` array, so the exclusion is auditable
+rather than an unexplained gap in a list.
+
+Reverting stays a human action over two still-live routes: `POST /audit/{id}/revert` (used by the
+web UI) and `POST /audit/revert` (the agent-shaped endpoint, exercised by
+`brunoCollection/utils-lists/Audit - Revert.bru` — left in place so that collection keeps working).
+
+**Read this before calling it done:** neither revert route is authenticated. Withholding the tool
+stops the agent *choosing* revert; it does not stop anything that can reach the port from calling
+it. That is [S1](#s1)'s job and [S1](#s1) is still open.
+
+**Still open:**
+1. `lists_delete` and `items_delete` remain freely callable by the agent. They are soft-deletes and
+   themselves revertible, which is why they rank below revert — but they are unguarded.
+2. No agent-side allow-list (`AGENT_ALLOWED_TOOLS`). This exclusion works only because the single
+   tool source cooperates; a second REST provider could still hand the agent anything.
+3. No `"destructive": true` marker in the discovery contract, and no confirmation-token flow.
 
 ### <a id="o4"></a>O4 — Raw tool arguments leak into callbacks and logs · Medium
 
@@ -129,23 +154,36 @@ the verb rather than merely present — e.g. match `(add|create|new)\s+item` bef
 branch. Then add regression cases that register the **full** tool set, since restricted registries
 hide precedence bugs.
 
-### <a id="c2"></a>C2 — Unknown tool name raises `KeyError` → 500 · High
+### <a id="c2"></a>C2 — Unknown tool name raised `KeyError` → 500 · High · ✅ Fixed
 
-[`tools/executor.py:14`](../src/tools/executor.py):
+**Was:** the registry lookup sat outside the `try` block, so a hallucinated or renamed tool name
+raised `KeyError`, escaped `AgentService.run`, escaped the route, and returned a 500 — killing the
+run and skipping the callback.
+
+**Now:** [`ToolExecutor.execute`](../src/tools/executor.py) uses a new non-raising
+`ToolRegistry.find()` and turns absence into an ordinary failed result:
 
 ```python
-tool = self.registry.get(invocation.name)   # ← outside the try
-try:
-    output = await tool.execute(invocation.arguments)
+tool = self.registry.find(invocation.name)
+if tool is None:
+    result = self._unknown_tool_result(invocation.name)
 ```
 
-`ToolRegistry.get` is a bare `dict[...]` lookup. A hallucinated or renamed tool name raises
-`KeyError`, escapes `AgentService.run`, escapes the route, and returns a 500 — killing the whole
-run and skipping the callback. `has_tool()` exists but is never called.
+`_unknown_tool_result` logs a warning and returns
+`ToolResult(ok=False, error="Unknown tool 'x'. Available tools: a, b, c.")`.
 
-**Fix:** move the lookup inside the `try`, or check `has_tool` first and return
-`ToolResult(ok=False, error=f"Unknown tool: {name}")`. Returning the error to the model lets it
-self-correct on the next iteration, which is the desired behaviour.
+Listing the real names in the error is the substance of the fix, not decoration: that string goes
+back into `messages` as tool output, so the planner sees what it *could* have called and can retry
+on the next iteration. A bad tool name is now a recoverable step rather than a lost run, and the
+callback still fires.
+
+`ToolRegistry.get()` still raises, for callers that want a strict lookup; `find()` is the tolerant
+path. Covered by `test_unknown_tool_becomes_a_failed_result_not_an_exception` and
+`test_find_returns_none_instead_of_raising` in
+[`tests/tool_registry_smoke.py`](../tests/tool_registry_smoke.py).
+
+This narrows [R1](#r1) but does not close it — OpenAI errors and malformed tool-call JSON still
+produce bare 500s with no callback.
 
 ### <a id="c3"></a>C3 — Malformed tool-call arguments corrupt the transcript · High · **verified**
 
@@ -181,6 +219,47 @@ mis-associate duplicate `tool_call_id`s.
 
 **Fix:** carry the id through: `ToolInvocation(name=…, arguments=…, call_id=tool_call.id)`. The
 field already exists on the model.
+
+### <a id="c6"></a>C6 — Startup crashed when the skills catalogue was not found · High · ✅ Fixed
+
+Found while verifying [O5](#o5): the container built fine and then exited 3 on boot.
+
+`SkillLibrary._default_skills_dir` walked ancestors with a hardcoded range:
+
+```python
+for parent in [Path(__file__).resolve().parents[i] for i in range(0, 6)]:
+```
+
+In the image the module sits at `/app/src/skills/library.py`, which has **four** parents, so
+`parents[4]` raised `IndexError` — during `initialize()`, inside the FastAPI startup event, so
+uvicorn aborted with `Application startup failed`. The `_fallback_skills()` catalogue that exists
+precisely for "no catalogue found" was unreachable, because the search for it crashed first.
+
+Compose hid this by setting `SKILLS_DIR=/app/skills` and bind-mounting `../skills`, which returns
+from the first branch. Any run without that mount — `docker run` with no `-v`, a dev with a
+different cwd, a deploy where the mount is missing — hit the crash instead of the fallback.
+
+**Now:** [`library.py`](../src/skills/library.py) walks `here.parents` directly, which is bounded by
+the real tree depth, and tests for `catalog.yml` rather than mere existence:
+
+```python
+for parent in here.parents:
+    candidate = parent / "skills"
+    if (candidate / "catalog.yml").is_file():
+        return candidate
+```
+
+The `catalog.yml` test is load-bearing. My first attempt checked `candidate.exists()`, which
+matched `agent/src/skills` — this package's own directory — because walking nearest-first reaches
+it before the repo-root catalogue. That silently downgraded every run to the two-skill fallback and
+was caught by the existing suite. Requiring the catalogue file identifies a real skills directory
+and cannot match the package.
+
+Verified by building and running the image with no mount: it now reaches `healthy` and serves
+`tools: ["echo", "search_skills"]`. Regression tests in
+[`tests/skill_library_smoke.py`](../tests/skill_library_smoke.py) cover the shallow-tree walk, that
+the resolved directory contains `catalog.yml` and is not the package dir, and that a missing
+catalogue yields the fallback skills instead of raising.
 
 ### <a id="c5"></a>C5 — Loop exhaustion silently returns the user's message · High
 
@@ -304,12 +383,37 @@ the n8n webhook can forge agent results.
 **Fix:** retry with exponential backoff; persist failures to a durable outbox; add an HMAC
 signature header derived from a shared secret.
 
-### <a id="o5"></a>O5 — Container hardening · Medium
+### <a id="o5"></a>O5 — Container hardening · Medium · ✅ Fixed (the two that mattered)
 
-[`Dockerfile`](../Dockerfile) runs uvicorn as root, has no `HEALTHCHECK`, and pins no base image
-digest. Compose has no `restart` policy and no resource limits.
+**Was:** [`Dockerfile`](../Dockerfile) ran uvicorn as root and had no `HEALTHCHECK`.
 
-**Fix:** add a non-root `USER`, a `HEALTHCHECK` hitting `/health`, and `restart: unless-stopped`.
+**Now:** both are in place.
+
+```dockerfile
+RUN useradd --create-home --uid 10001 --shell /usr/sbin/nologin agent \
+    && chown -R agent:agent /app
+USER agent
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"
+```
+
+The uid is pinned at 10001 so bind-mounted files keep a predictable owner across rebuilds. The
+probe uses `urllib` rather than `curl` because the slim base has no curl, and `urlopen` raises on a
+non-2xx status — so a process that is up but answering with an error is reported unhealthy rather
+than passing on "it responded". `start-period=20s` covers startup tool discovery, which can spend
+up to 30s timing out against an absent `utils-lists`.
+
+Verified end to end by building the image and running it three ways: without a skills mount, with
+`../skills` mounted read-only as Compose does, and while exercising `/agent/run`. In every case
+`docker exec … id` reports `uid=10001(agent) gid=10001(agent)` and the container reaches `healthy`;
+the non-root user reads the read-only mount without trouble. That exercise is what surfaced
+[C6](#c6).
+
+**Still open:** no pinned base-image digest, no `restart: unless-stopped` in
+[`docker-compose.yml`](../docker-compose.yml), no resource limits. Note also that this is a
+liveness probe, not readiness — `/health` returns `status: "ok"` even when tool discovery failed
+([R2](#r2)), so a container can be `healthy` with no tools registered.
 
 ---
 
@@ -373,13 +477,33 @@ way to know the call did nothing.
 **Fix:** until it's implemented, raise `NotImplementedError` from `execute` (the executor already
 converts that to `ok=False`) and log a warning when `ENABLE_MCP` is set.
 
-### <a id="q6"></a>Q6 — Registry allows silent name collisions · Low
+### <a id="q6"></a>Q6 — Registry allowed *silent* name collisions · Low · ✅ Fixed
 
-`register()` is `self._tools[tool.name] = tool`. A discovered REST tool named `echo` would
-silently replace the local one. Discovery is remote input, so this is a small trust issue as well
-as a correctness one.
+**Was:** `register()` was a bare `self._tools[tool.name] = tool`. A discovered REST tool named
+`echo` would replace the local one with no trace anywhere.
 
-**Fix:** raise or log on overwrite; consider namespacing discovered tools by source.
+**Now:** [`ToolRegistry.register`](../src/tools/registry.py) detects the clash, records it, and logs
+a warning:
+
+```
+Tool name collision: 'echo' registered by ShadowTool replaces the existing EchoTool
+```
+
+Each collision is stored as `{"name", "replaced", "replacedBy"}` — the tool name plus both class
+names, which is what tells you *which* source won. `collisions()` returns a copy, and
+`AgentRuntime.health_snapshot()` exposes the list as `toolNameCollisions` in `GET /health`, so a
+clash is visible without reading container logs.
+
+Last-write-wins is deliberately unchanged. Rejecting the second registration would make the winner
+depend on discovery order just as silently as before, and failing startup outright would turn a
+remote service's naming choice into an agent outage. The fix is to make it loud and let the health
+endpoint drive the decision.
+
+**Still open:** namespacing discovered tools by source (`utils_lists.echo`) would prevent collisions
+rather than report them — worth doing once there is a second REST provider.
+
+Covered by four cases in [`tests/tool_registry_smoke.py`](../tests/tool_registry_smoke.py),
+including that `collisions()` returns a copy rather than the live list.
 
 ### <a id="q7"></a>Q7 — Deprecated startup hook; racy lazy init · Low
 
@@ -419,9 +543,11 @@ pyright to the dev requirements.
 
 ## Suggested sequence
 
-1. **Stop the bleeding** — [C2](#c2), [C3](#c3), [C4](#c4) are three-line fixes with outsized
-   impact on multi-step runs. Do them first.
-2. **Close the front door** — [S1](#s1), [S2](#s2). Shared-secret auth and a tool allow-list.
+1. **Stop the bleeding** — ~~[C2](#c2)~~ and ~~[C6](#c6)~~ done. [C3](#c3) and [C4](#c4) are still
+   three-line fixes with outsized impact on multi-step runs; do them next.
+2. **Close the front door** — [S1](#s1) is now the binding constraint. `audit_revert` is out of the
+   agent's reach ([S2](#s2)), but `/agent/run` and both revert routes are still unauthenticated.
+   Shared-secret auth, then an allow-list for the remaining `*_delete` tools.
 3. **Fix the offline planner or retire it** — [C1](#c1). Given that it silently mutates data,
    consider making it explicitly opt-in (`ENABLE_LOCAL_PLANNER=true`) and read-only by default,
    rather than the automatic fallback it is today.
