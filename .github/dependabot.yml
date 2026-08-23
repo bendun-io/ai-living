@@ -1,0 +1,55 @@
+version: 2
+updates:
+  # Container images (Dockerfile + docker-compose.yml/.yaml)
+  - package-ecosystem: "docker"
+    directories:
+      - "/agent"
+      - "/agent-intake"
+      - "/agent-intake/transcribe"
+      - "/agent-intake/tts"
+      - "/agent-intake/webhook"
+      - "/n8n"
+      - "/n8n/mcp-server"
+      - "/n8n/runner"
+      - "/utils"
+      - "/utils/lists-service"
+      - "/monitoring"
+    schedule:
+      interval: "weekly"
+    groups:
+      docker-images:
+        patterns:
+          - "*"
+
+  # Python dependencies (requirements.txt)
+  - package-ecosystem: "pip"
+    directories:
+      - "/agent"
+      - "/agent-intake/transcribe"
+      - "/agent-intake/tts"
+      - "/n8n/mcp-server"
+      - "/utils/lists-service"
+    schedule:
+      interval: "weekly"
+    groups:
+      python-dependencies:
+        patterns:
+          - "*"
+
+  # Node dependencies (package.json)
+  - package-ecosystem: "npm"
+    directories:
+      - "/agent-intake/webhook"
+      - "/desktop-app-electron"
+    schedule:
+      interval: "weekly"
+    groups:
+      npm-dependencies:
+        patterns:
+          - "*"
+
+  # GitHub Actions workflows (none yet, kept for when they're added)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
