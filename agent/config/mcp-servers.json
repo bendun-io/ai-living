@@ -12,7 +12,7 @@
   "servers": [
     {
       "name": "homeassistant",
-      "url": "http://homeassistant.local:8123/api/mcp",
+      "url": "http://192.168.1.155:8123/api/mcp",
       "enabled": false,
       "prefix": "ha_",
       "transport": "streamable_http",
