@@ -14,7 +14,7 @@ services:
       MCP_SERVERS: ${MCP_SERVERS:-}
       MEMORY_PROVIDER: ${MEMORY_PROVIDER:-memory}
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      ENABLE_UTILS_LISTS_TOOLS: ${ENABLE_UTILS_LISTS_TOOLS:-false}
+      ENABLE_UTILS_LISTS_TOOLS: ${ENABLE_UTILS_LISTS_TOOLS:-true}
       UTILS_LISTS_BASE_URL: ${UTILS_LISTS_BASE_URL:-http://utils-lists:8010}
       SKILLS_DIR: /app/skills
     ports:

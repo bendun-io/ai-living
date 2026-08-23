@@ -6,8 +6,9 @@ from typing import Any
 from src.callbacks.callback import CallbackClient
 from src.llm.openai_client import LocalLLMClient, OpenAIResponsesClient
 from src.memory.memory import MemoryStore
-from src.models import AgentRunRequest, AgentRunResponse, CallbackPayload, DebugTrace, ToolExecutionRecord, ToolInvocation, ToolUsageTrace
+from src.models import AgentRunRequest, AgentRunResponse, CallbackPayload, DebugTrace, ToolExecutionRecord, ToolInvocation, ToolResult, ToolUsageTrace
 from src.skills.library import SkillLibrary
+from src.tools.adapters.local import SKILL_SEARCH_TOOL_NAME
 from src.tools.executor import ToolExecutor
 from src.tools.registry import ToolRegistry
 
@@ -34,6 +35,7 @@ class AgentService:
         ]
         tool_log: list[ToolExecutionRecord] = []
         tools_used: list[ToolUsageTrace] = []
+        skills_read: list[str] = []
         result_text = request.message
 
         for _ in range(self.max_iterations):
@@ -49,6 +51,7 @@ class AgentService:
                 tools_used.append(ToolUsageTrace(tool=invocation.name, arguments=invocation.arguments))
                 record = await self.tool_executor.execute(invocation)
                 tool_log.append(record)
+                self._record_consulted_skills(record.result, skills_read)
                 messages.append(
                     {
                         "role": "tool",
@@ -57,7 +60,6 @@ class AgentService:
                     }
                 )
 
-        skills_read = self.skill_library.skill_names() if self.skill_library is not None else []
         debug_trace = DebugTrace(skillsRead=skills_read, toolsUsed=tools_used)
 
         response = AgentRunResponse(
@@ -89,6 +91,25 @@ class AgentService:
                 safe_messages.append({"role": role, "content": content})
 
         return safe_messages
+
+    @staticmethod
+    def _record_consulted_skills(result: ToolResult, skills_read: list[str]) -> None:
+        """Append skill names returned by a skill-library lookup, in first-seen order."""
+        if result.name != SKILL_SEARCH_TOOL_NAME or not result.ok:
+            return
+        if not isinstance(result.output, dict):
+            return
+
+        matches = result.output.get("matches")
+        if not isinstance(matches, list):
+            return
+
+        for match in matches:
+            if not isinstance(match, dict):
+                continue
+            name = match.get("name")
+            if isinstance(name, str) and name and name not in skills_read:
+                skills_read.append(name)
 
     def _build_assistant_tool_message(self, invocations: list[ToolInvocation]) -> dict[str, Any]:
         return {

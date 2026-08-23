@@ -73,7 +73,7 @@ Starts a single agent run for one conversation message.
   "result": "echo hello",
   "toolLog": [],
   "debug": {
-    "skillsRead": ["document_search", "calendar_lookup", "joke_teller"],
+    "skillsRead": [],
     "toolsUsed": [
       {
         "tool": "echo",
@@ -97,7 +97,7 @@ Starts a single agent run for one conversation message.
 - `result`: Final answer produced by the agent.
 - `toolLog`: Ordered list of tool executions.
 - `debug`: Trace details for client-side debugging.
-  - `skillsRead`: Ordered list of skill names loaded for this run.
+  - `skillsRead`: Ordered, de-duplicated list of the skills the run actually consulted, i.e. the ones returned by `search_skills` calls. Empty when the run never looked a skill up (as in the `echo hello` example above).
   - `toolsUsed`: Ordered list of tools invoked, each with JSON arguments.
 - `metadata`: Echoed metadata object.
 
@@ -113,7 +113,7 @@ The agent sends the same response envelope to the configured callback URL after 
   "result": "echo hello",
   "toolLog": [],
   "debug": {
-    "skillsRead": ["document_search", "calendar_lookup", "joke_teller"],
+    "skillsRead": [],
     "toolsUsed": [
       {
         "tool": "echo",

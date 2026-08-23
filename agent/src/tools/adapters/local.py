@@ -6,6 +6,9 @@ from typing import Any
 from src.skills.library import SkillLibrary
 
 
+SKILL_SEARCH_TOOL_NAME = "search_skills"
+
+
 @dataclass(slots=True)
 class EchoTool:
     name: str = "echo"
@@ -25,7 +28,7 @@ class EchoTool:
 @dataclass(slots=True)
 class SkillSearchTool:
     library: SkillLibrary
-    name: str = "search_skills"
+    name: str = SKILL_SEARCH_TOOL_NAME
     description: str = "Search the agent skill library by keyword and return brief summaries or detailed descriptions."
     input_schema: dict[str, Any] = field(
         default_factory=lambda: {
