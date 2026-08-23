@@ -1,0 +1,30 @@
+# workflows/create_customer.yaml
+
+name: create_customer
+description: Create a new customer in the CRM.
+
+n8n:
+  url: https://n8n.example.com/webhook/create-customer
+  auth:
+    type: header
+    key: X-Auth-Token
+    env: N8N_AUTH_TOKEN
+
+input:
+  type: object
+  properties:
+    name:
+      type: string
+      description: Full name of the customer
+    email:
+      type: string
+      format: email
+      description: Customer email address
+    company:
+      type: string
+  required:
+    - name
+    - email
+
+execution:
+  timeout_seconds: 30
