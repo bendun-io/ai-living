@@ -1,0 +1,17 @@
+meta {
+  name: Contacts Google Search
+  type: http
+  seq: 2
+}
+
+post {
+  url: https://n8n.bendun.io/webhook-test/3b6dd579-a2d1-45c9-9b3e-7ef3141b87d1
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "search": "Jonas"
+  }
+}
