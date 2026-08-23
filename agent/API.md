@@ -16,6 +16,10 @@ Returns a lightweight status payload that can be used for liveness checks.
 {
   "status": "ok",
   "mcpEnabled": false,
+  "mcpServersFile": "/app/config/mcp-servers.json",
+  "mcpRefreshIntervalSeconds": 3600,
+  "mcpConfigError": null,
+  "mcpServers": [],
   "utilsListsToolsEnabled": true,
   "utilsListsBaseUrl": "http://utils-lists:8010",
   "utilsListsDiscoveredTools": 12,
@@ -29,6 +33,11 @@ Returns a lightweight status payload that can be used for liveness checks.
 
 - `status`: Always `ok` when the service is reachable.
 - `mcpEnabled`: Boolean flag showing whether MCP tool discovery is enabled.
+- `mcpServersFile`: Path of the JSON file listing the MCP servers.
+- `mcpRefreshIntervalSeconds`: How often MCP tools are rediscovered; `0` means only at startup.
+- `mcpConfigError`: Last error from reading that file, otherwise `null`.
+- `mcpServers`: One entry per configured server as
+  `{"name", "url", "prefix", "tools", "error", "lastSuccessAt", "lastAttemptAt"}`.
 - `utilsListsToolsEnabled`: Boolean flag showing whether external list tooling discovery is enabled.
 - `utilsListsBaseUrl`: Base URL used for list tool discovery and execution.
 - `utilsListsDiscoveredTools`: Number of discovered list tools currently registered.
@@ -149,7 +158,8 @@ These are the key variables read by the service:
 - `OPENAI_MODEL`
 - `CALLBACK_URL`
 - `ENABLE_MCP`
-- `MCP_SERVERS`
+- `MCP_SERVERS_FILE`
+- `MCP_REFRESH_INTERVAL_SECONDS`
 - `MEMORY_PROVIDER`
 - `LOG_LEVEL`
 - `ENABLE_UTILS_LISTS_TOOLS`

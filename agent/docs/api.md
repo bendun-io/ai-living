@@ -34,6 +34,10 @@ Liveness plus a snapshot of what the runtime discovered at startup.
 {
   "status": "ok",
   "mcpEnabled": false,
+  "mcpServersFile": "/app/config/mcp-servers.json",
+  "mcpRefreshIntervalSeconds": 3600,
+  "mcpConfigError": null,
+  "mcpServers": [],
   "utilsListsToolsEnabled": true,
   "utilsListsBaseUrl": "http://utils-lists:8010",
   "utilsListsDiscoveredTools": 12,
@@ -47,6 +51,10 @@ Liveness plus a snapshot of what the runtime discovered at startup.
 | --- | --- | --- |
 | `status` | string | Always `"ok"` when the process is serving |
 | `mcpEnabled` | bool | Value of `ENABLE_MCP` |
+| `mcpServersFile` | string | Path of the MCP server config file |
+| `mcpRefreshIntervalSeconds` | int | Rediscovery interval; `0` means startup only |
+| `mcpConfigError` | string \| null | Last error from reading that file |
+| `mcpServers` | object[] | Per-server status: `{"name", "url", "prefix", "tools", "error", "lastSuccessAt", "lastAttemptAt"}` |
 | `utilsListsToolsEnabled` | bool | Value of `ENABLE_UTILS_LISTS_TOOLS` |
 | `utilsListsBaseUrl` | string | Base URL used for discovery and execution |
 | `utilsListsDiscoveredTools` | int | Count of REST tools registered at startup |
@@ -284,12 +292,26 @@ soft-deletes and themselves revertible by a human.
 The lists service's own `GET /health` reports both sides of this: `tools` lists what agents can
 see, `agentExcludedTools` lists what is deliberately withheld.
 
-### 2.4 MCP (not functional)
+### 2.4 MCP servers
 
-`ENABLE_MCP=true` with `MCP_SERVERS=<csv>` walks the MCP path, but
-[`adapters/mcp.py`](../src/tools/adapters/mcp.py) is a stub: `discover_tools()` returns `[]`, so
-nothing is registered. Its `execute()` would return `{"status": "not_implemented", …}` as a
-*successful* tool result if a tool ever reached it.
+`ENABLE_MCP=true` makes the runtime read `MCP_SERVERS_FILE` (default
+[`config/mcp-servers.json`](../config/mcp-servers.json)) and connect to each server with the
+official `mcp` client SDK over Streamable HTTP (or SSE, per entry). Every discovered tool is
+registered under `<prefix><remote name>` — `ha_HassTurnOn` for the Home Assistant example — and
+called on the server under its un-prefixed name.
+
+Home Assistant needs no add-on for this: enable its built-in **Model Context Protocol Server**
+integration, expose the entities the agent may touch under Settings → Voice assistants → Expose,
+and point an entry at `http://<ha-host>:8123/api/mcp` with a long-lived access token in the env
+var named by `tokenEnv`. What the agent can reach is decided on the Home Assistant side, the same
+way `audit_revert` is withheld by the lists service rather than by an agent allow-list.
+
+Discovery runs at startup and then every `MCP_REFRESH_INTERVAL_SECONDS` (default 3600). A refresh
+replaces that server's tools; a server that fails discovery keeps the tools it published last time
+and reports the error under `mcpServers[].error` in `/health`. A tool that returns an MCP error is
+recorded as a **failed** `ToolResult` carrying the server's message, not as a successful one.
+
+See [architecture.md §5.3](architecture.md) for the config schema and the design rationale.
 
 ---
 
@@ -304,7 +326,7 @@ Used only when `OPENAI_API_KEY` is set.
 - Tools are sent in the legacy nested shape
   `{"type": "function", "function": {"name", "description", "parameters"}}`, with
   `tool_choice: "auto"` when at least one tool is registered.
-- Called up to 5 times per `/agent/run` (`AgentService.max_iterations`).
+- Called up to 10 times per `/agent/run` (`AgentService.max_iterations`).
 - No explicit request timeout, no retry policy, no token/cost cap, no streaming.
 - The full conversation — system prompt, memory, user message, tool arguments and tool results —
   is sent to OpenAI on every iteration.
@@ -370,8 +392,9 @@ the model inferred — lands in the callback consumer's logs.
 | `OPENAI_API_KEY` | — | Set → OpenAI planner; unset → offline `LocalLLMClient` |
 | `OPENAI_MODEL` | `gpt-4.1-mini` | Chat completions model id |
 | `CALLBACK_URL` | — | Result delivery target; unset disables callbacks |
-| `ENABLE_MCP` | `false` | Enables the (non-functional) MCP path |
-| `MCP_SERVERS` | — | Comma-separated MCP server URLs |
+| `ENABLE_MCP` | `false` | Enables MCP tool discovery |
+| `MCP_SERVERS_FILE` | `config/mcp-servers.json` | JSON file listing the MCP servers |
+| `MCP_REFRESH_INTERVAL_SECONDS` | `3600` | Rediscovery interval; `0` disables the timer |
 | `MEMORY_PROVIDER` | `memory` | Parsed but **unused**; memory is always in-process |
 | `LOG_LEVEL` | `info` | Root log level |
 | `ENABLE_UTILS_LISTS_TOOLS` | `false` | Enables REST tool discovery |

@@ -18,6 +18,11 @@ async def on_startup() -> None:
     await runtime.initialize()
 
 
+@app.on_event("shutdown")
+async def on_shutdown() -> None:
+    await runtime.shutdown()
+
+
 @app.get("/health")
 async def health() -> dict[str, object]:
     return {"status": "ok", **runtime.health_snapshot()}

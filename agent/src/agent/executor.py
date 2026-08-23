@@ -23,7 +23,7 @@ class AgentService:
     memory_store: MemoryStore
     callback_client: CallbackClient
     skill_library: SkillLibrary | None = None
-    max_iterations: int = 5
+    max_iterations: int = 10
 
     async def run(self, request: AgentRunRequest) -> AgentRunResponse:
         memory = self._chat_safe_memory(await self.memory_store.load(request.conversationId))

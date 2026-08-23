@@ -81,7 +81,10 @@ initialize()
   ├─ SkillLibrary.default()                 # loads skills/catalog.yml (or fallback)
   ├─ ToolRegistry()
   ├─ register local tools                   # echo, search_skills
-  ├─ if ENABLE_MCP:  register MCP tools     # currently discovers nothing (stub)
+  ├─ if ENABLE_MCP:
+  │     load_mcp_server_configs(file)       # config/mcp-servers.json
+  │     refresh_mcp_tools()                 # list_tools per server, prefixed
+  │     start the hourly refresh task       # MCP_REFRESH_INTERVAL_SECONDS
   ├─ if ENABLE_UTILS_LISTS_TOOLS:
   │     fetch_rest_tool_definitions(base)   # GET /agent/tool-definitions
   │     register each as a RestTool         # failure is caught + recorded, not fatal
@@ -93,9 +96,10 @@ initialize()
 
 Two consequences worth knowing:
 
-- **Tool discovery happens once, at startup.** If `utils-lists` is unavailable at that moment,
-  the agent starts healthy but with no list tools until it is restarted. The failure is surfaced
-  through `utilsListsDiscoveryError` in `/health`.
+- **REST tool discovery happens once, at startup.** If `utils-lists` is unavailable at that
+  moment, the agent starts healthy but with no list tools until it is restarted. The failure is
+  surfaced through `utilsListsDiscoveryError` in `/health`. MCP discovery does not share this
+  limitation — it re-runs on a timer (§5.3).
 - **The LLM choice is implicit.** A missing `OPENAI_API_KEY` silently degrades the service to the
   regex-based `LocalLLMClient`; `/health` does not report which planner is active.
 
@@ -122,7 +126,7 @@ AgentRuntime.run ──► AgentService.run
         │
         ├─ 3. messages = [system, *memory, user]
         │
-        ├─ 4. loop, at most max_iterations (5):
+        ├─ 4. loop, at most max_iterations (10):
         │        plan = llm_client.plan(messages, registry.definitions())
         │        if plan.kind == "final":  result_text = plan.final_answer; break
         │        append synthetic assistant message carrying the tool calls
@@ -139,7 +143,7 @@ AgentRuntime.run ──► AgentService.run
 
 Notes on the loop as implemented:
 
-- `result_text` is initialised to `request.message`. If the loop exhausts all five iterations
+- `result_text` is initialised to `request.message`. If the loop exhausts all ten iterations
   without the model producing a final answer, the agent returns the **user's own message** as the
   result, with no error marker.
 - `prompt_bundle.tool_context` is computed but never added to `messages`. Tool awareness reaches
@@ -234,10 +238,68 @@ This is the key extensibility seam: **a new backing service needs no agent code 
 
 ### 5.3 MCP adapter — [`adapters/mcp.py`](../src/tools/adapters/mcp.py)
 
-A placeholder. `discover_tools()` returns an empty list and `execute()` returns
-`{"status": "not_implemented", ...}`. Setting `ENABLE_MCP=true` therefore registers nothing.
-`_DynamicTool` in [`agent.py`](../src/agent/agent.py) is the wrapper that would adapt discovered
-MCP tool dicts to `ToolProtocol` once discovery is real.
+The second live tool source. `ENABLE_MCP=true` makes the runtime read `MCP_SERVERS_FILE`
+(default [`config/mcp-servers.json`](../config/mcp-servers.json)) and connect to each server
+listed there with the official `mcp` client SDK.
+
+```json
+{
+  "servers": [
+    {
+      "name": "homeassistant",
+      "url": "http://homeassistant.local:8123/api/mcp",
+      "enabled": true,
+      "prefix": "ha_",
+      "transport": "streamable_http",
+      "tokenEnv": "HOMEASSISTANT_TOKEN",
+      "timeoutSeconds": 30
+    }
+  ]
+}
+```
+
+| Field | Default | Use |
+| --- | --- | --- |
+| `name` | — | Identifies the server in logs and `/health` (required) |
+| `url` | — | MCP endpoint (required) |
+| `enabled` | `true` | `false` skips the entry without deleting it |
+| `prefix` | `<name>_` | Prepended to every tool name; `""` opts out |
+| `transport` | `streamable_http` | Or `sse` for servers that only speak the older transport |
+| `tokenEnv` / `token` | — | Bearer token; `tokenEnv` names an env var |
+| `headers` | `{}` | Extra request headers |
+| `timeoutSeconds` | `30` | Per-request HTTP timeout |
+
+`url`, `token` and header values expand `${VAR}` from the environment, so the file carries
+configuration and the environment carries secrets — which is what lets the file be committed.
+Entries missing `name` or `url` are skipped with a warning rather than failing the whole file; a
+missing or malformed file is recorded as `mcpConfigError` in `/health` and leaves the agent
+running with its other tools.
+
+**Why prefixes are on by default.** MCP servers name their own tools with no knowledge of each
+other, so two servers can both publish `GetLiveContext`. The registry's last-write-wins rule
+would silently resolve that in discovery order. Prefixing makes the collision impossible rather
+than merely visible; `MCPTool` keeps the un-prefixed `remote_name` and calls the server with that,
+so the namespacing stays purely local.
+
+**Sessions are per call.** `MCPToolAdapter` opens a session for each `list_tools`/`call_tool` and
+closes it again. Streamable HTTP is stateless, so a dropped connection or a server restart costs
+one failed call instead of leaving a long-lived session wedged. The price is an `initialize`
+handshake per tool call.
+
+A tool that reports `isError` is re-raised as a `RuntimeError`, so `ToolExecutor` records it as a
+failed `ToolResult` carrying the server's message — the same shape a local tool raising produces,
+and recoverable by the planner on the next iteration.
+
+**Discovery repeats.** `AgentRuntime` re-runs discovery every `MCP_REFRESH_INTERVAL_SECONDS`
+(default 3600, `0` disables the timer) in a background task cancelled on FastAPI shutdown. Each
+refresh unregisters that server's previous tool names and registers the new listing, so a tool the
+server has withdrawn stops being callable. A server that fails discovery **keeps its previous
+tools** and records the error in `/health`: a network blip should not silently shrink what the
+planner can do. A refresh that lands mid-run can remove a tool the planner is about to call, which
+surfaces as the ordinary unknown-tool `ToolResult` rather than as a crash.
+
+`/health` reports one `mcpServers` entry per configured server with its prefix, tool count, last
+error, and last attempt/success timestamps.
 
 ---
 
@@ -344,15 +406,17 @@ All configuration is environment-driven through the frozen-ish `Settings` datacl
 | `OPENAI_API_KEY` | — | Selects `OpenAIResponsesClient` vs `LocalLLMClient` |
 | `OPENAI_MODEL` | `gpt-4.1-mini` | Model id for chat completions |
 | `CALLBACK_URL` | — | Result delivery target; unset disables callbacks |
-| `ENABLE_MCP` | `false` | Enables the (stub) MCP discovery path |
-| `MCP_SERVERS` | — | Comma-separated server URLs |
+| `ENABLE_MCP` | `false` | Enables MCP discovery |
+| `MCP_SERVERS_FILE` | `config/mcp-servers.json` | Per-server MCP config (§5.3) |
+| `MCP_REFRESH_INTERVAL_SECONDS` | `3600` | Rediscovery interval; `0` disables it |
 | `MEMORY_PROVIDER` | `memory` | Parsed but unused |
 | `LOG_LEVEL` | `info` | Root log level |
 | `ENABLE_UTILS_LISTS_TOOLS` | `false` | Enables REST tool discovery |
 | `UTILS_LISTS_BASE_URL` | `http://utils-lists:8010` | Discovery + execution base URL |
 | `SKILLS_DIR` | — | Overrides skill catalog location |
 
-Booleans accept `1/true/yes/on`. Lists are comma-separated with whitespace trimmed.
+Booleans accept `1/true/yes/on`. `MCP_SERVERS_FILE` may be absolute or relative; a relative
+path is resolved against the working directory first, then against the `agent/` project root.
 
 ---
 
@@ -360,7 +424,7 @@ Booleans accept `1/true/yes/on`. Lists are comma-separated with whitespace trimm
 
 [`Dockerfile`](../Dockerfile): `python:3.11-slim`, installs
 [`requirements.txt`](../requirements.txt) (FastAPI 0.115.6, uvicorn 0.34.0, httpx 0.28.1,
-openai 1.59.7, PyYAML 6.0.2), copies only `src/`, exposes 8000, and runs
+openai 1.59.7, PyYAML 6.0.2, mcp 1.29.0), copies `src/` and `config/`, exposes 8000, and runs
 `uvicorn src.app:app --host 0.0.0.0 --port 8000`.
 
 It runs as the unprivileged `agent` account (uid pinned to 10001, so bind-mounted files keep a
@@ -373,9 +437,10 @@ Note this is liveness, not readiness: `/health` returns `status: "ok"` even when
 failed, so a container can be `healthy` with no tools registered.
 
 [`docker-compose.yml`](../docker-compose.yml): one `agent` service on the shared external-style
-`ai-living` network, host port `8000:8000`, `../skills` mounted read-only at `/app/skills`, and
-`host.docker.internal` mapped to the host gateway so the default `CALLBACK_URL` can reach an n8n
-webhook on the host.
+`ai-living` network, host port `8000:8000`, `../skills` mounted read-only at `/app/skills`,
+`./config` mounted read-only at `/app/config` so MCP servers can be re-pointed without a
+rebuild, and `host.docker.internal` mapped to the host gateway so the default `CALLBACK_URL`
+can reach an n8n webhook on the host.
 
 Because tool discovery and memory both live in the process, the service is currently
 **single-instance by design**. Horizontal scaling requires externalising memory first.
@@ -384,10 +449,12 @@ Because tool discovery and memory both live in the process, the service is curre
 
 ## 12. Tests
 
-Four scripts under [`tests/`](../tests):
+Six scripts under [`tests/`](../tests):
 
-- `skill_library_smoke.py`, `local_planner_lists_smoke.py`, `debug_trace_smoke.py` — pytest-style
-  assert functions, runnable in-process.
+- `skill_library_smoke.py`, `local_planner_lists_smoke.py`, `debug_trace_smoke.py`,
+  `tool_registry_smoke.py`, `mcp_adapter_smoke.py` — pytest-style assert functions, runnable
+  in-process. `mcp_adapter_smoke.py` covers config parsing, prefixing, the refresh swap and the
+  keep-previous-tools-on-failure rule against a fake adapter, so it needs no MCP server.
 - `callback_smoke.py` — a full end-to-end harness that boots Docker Compose, starts a local HTTP
   listener as the callback target, exercises `/health` and `/agent/run`, and asserts the callback
   envelope.
@@ -408,7 +475,7 @@ The `*_smoke.py` naming does not match pytest's default discovery patterns (`tes
 | Swap the LLM provider | New class with `.plan(messages, tools)`, one branch in `initialize()` |
 | Swap result delivery | New class with `.send(payload)` |
 | Persist memory | Implement the `load`/`append` pair over Postgres/Redis and honour `MEMORY_PROVIDER` |
-| Real MCP support | Implement `discover_tools`/`execute` in `adapters/mcp.py`; `_DynamicTool` already fits |
+| Add an MCP server | Add an entry to `config/mcp-servers.json`. **No agent code.** |
 
 The reasoning loop in `AgentService.run` should not need to change for any of these — which is the
 core property the architecture is aiming for.

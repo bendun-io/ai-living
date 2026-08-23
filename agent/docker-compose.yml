@@ -11,7 +11,9 @@ services:
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
       CALLBACK_URL: ${CALLBACK_URL:-http://host.docker.internal:5678/webhook/agentFinished}
       ENABLE_MCP: ${ENABLE_MCP:-false}
-      MCP_SERVERS: ${MCP_SERVERS:-}
+      MCP_SERVERS_FILE: ${MCP_SERVERS_FILE:-/app/config/mcp-servers.json}
+      MCP_REFRESH_INTERVAL_SECONDS: ${MCP_REFRESH_INTERVAL_SECONDS:-3600}
+      HOMEASSISTANT_TOKEN: ${HOMEASSISTANT_TOKEN:-}
       MEMORY_PROVIDER: ${MEMORY_PROVIDER:-memory}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       ENABLE_UTILS_LISTS_TOOLS: ${ENABLE_UTILS_LISTS_TOOLS:-true}
@@ -21,6 +23,7 @@ services:
       - "8000:8000"
     volumes:
       - ../skills:/app/skills:ro
+      - ./config:/app/config:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:

@@ -1,7 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+import logging
 import os
+
+from src.tools.adapters.mcp import DEFAULT_MCP_SERVERS_FILE
+
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_bool(value: str | None, default: bool = False) -> bool:
@@ -10,10 +16,14 @@ def _parse_bool(value: str | None, default: bool = False) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _parse_csv(value: str | None) -> list[str]:
-    if not value:
-        return []
-    return [item.strip() for item in value.split(",") if item.strip()]
+def _parse_int(value: str | None, default: int) -> int:
+    if value is None or not value.strip():
+        return default
+    try:
+        return int(value.strip())
+    except ValueError:
+        logger.warning("Ignoring non-integer value %r; using %s", value, default)
+        return default
 
 
 @dataclass(slots=True)
@@ -24,7 +34,8 @@ class Settings:
     openai_model: str = "gpt-4.1-mini"
     callback_url: str | None = None
     enable_mcp: bool = False
-    mcp_servers: list[str] = field(default_factory=list)
+    mcp_servers_file: str = DEFAULT_MCP_SERVERS_FILE
+    mcp_refresh_interval_seconds: int = 3600
     memory_provider: str = "memory"
     log_level: str = "info"
     enable_utils_lists_tools: bool = False
@@ -39,7 +50,10 @@ class Settings:
             openai_model=os.getenv("OPENAI_MODEL", "gpt-4.1-mini"),
             callback_url=os.getenv("CALLBACK_URL") or None,
             enable_mcp=_parse_bool(os.getenv("ENABLE_MCP"), False),
-            mcp_servers=_parse_csv(os.getenv("MCP_SERVERS")),
+            mcp_servers_file=os.getenv("MCP_SERVERS_FILE") or DEFAULT_MCP_SERVERS_FILE,
+            mcp_refresh_interval_seconds=_parse_int(
+                os.getenv("MCP_REFRESH_INTERVAL_SECONDS"), 3600
+            ),
             memory_provider=os.getenv("MEMORY_PROVIDER", "memory"),
             log_level=os.getenv("LOG_LEVEL", "info"),
             enable_utils_lists_tools=_parse_bool(os.getenv("ENABLE_UTILS_LISTS_TOOLS"), False),

@@ -49,6 +49,14 @@ class ToolRegistry:
 
         self._tools[tool.name] = tool
 
+    def unregister(self, tool_name: str) -> bool:
+        """Drop a tool, reporting whether it was there.
+
+        Needed by sources that rediscover periodically: without it, a tool the remote
+        server has withdrawn would stay callable until the next process restart.
+        """
+        return self._tools.pop(tool_name, None) is not None
+
     def get(self, tool_name: str) -> ToolProtocol:
         return self._tools[tool_name]
 

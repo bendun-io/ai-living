@@ -9,6 +9,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src/ ./src
+# Baked in so the image runs standalone; docker-compose mounts ./config over it.
+COPY config/ ./config
 
 # Run as an unprivileged account. The uid is pinned so bind-mounted files keep a
 # predictable owner across rebuilds; /app/skills is mounted read-only at runtime.

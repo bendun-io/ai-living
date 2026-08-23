@@ -1,0 +1,23 @@
+{
+  "$comment": [
+    "One entry per MCP server. Tokens are read from environment variables via tokenEnv",
+    "(or ${VAR} placeholders inside url/token/headers) so this file can be committed.",
+    "Fields: name (required), url (required), enabled (default true),",
+    "prefix (default '<name>_', set '' to disable namespacing), transport",
+    "('streamable_http' or 'sse'), tokenEnv | token, headers, timeoutSeconds.",
+    "Home Assistant: enable the built-in 'Model Context Protocol Server' integration,",
+    "expose the entities you want reachable on Settings > Voice assistants > Expose,",
+    "and create a long-lived access token under your profile > Security."
+  ],
+  "servers": [
+    {
+      "name": "homeassistant",
+      "url": "http://homeassistant.local:8123/api/mcp",
+      "enabled": false,
+      "prefix": "ha_",
+      "transport": "streamable_http",
+      "tokenEnv": "HOMEASSISTANT_TOKEN",
+      "timeoutSeconds": 30
+    }
+  ]
+}
