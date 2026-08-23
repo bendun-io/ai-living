@@ -178,10 +178,21 @@ function renderMessages() {
   }
 
   for (const message of thread.messages) {
-    const el = document.createElement('div');
-    el.className = `message ${message.role}`;
-    el.textContent = `${message.role}: ${message.text}`;
-    messagesEl.appendChild(el);
+    const row = document.createElement('div');
+    row.className = `message-row ${message.role}`;
+
+    const avatar = document.createElement('img');
+    avatar.className = 'avatar';
+    avatar.src = message.role === 'assistant' ? 'img/jarvis.png' : 'img/ironman.png';
+    avatar.alt = message.role;
+
+    const bubble = document.createElement('div');
+    bubble.className = `message ${message.role}`;
+    bubble.textContent = message.text;
+
+    row.appendChild(avatar);
+    row.appendChild(bubble);
+    messagesEl.appendChild(row);
   }
 
   messagesEl.scrollTop = messagesEl.scrollHeight;
