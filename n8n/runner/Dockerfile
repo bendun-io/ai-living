@@ -1,4 +1,4 @@
-FROM n8nio/runners:1.121.0
+FROM n8nio/runners:2.35.5
 
 COPY n8n-task-runners.json /etc/n8n-task-runners.json
 
