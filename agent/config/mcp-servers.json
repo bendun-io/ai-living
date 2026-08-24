@@ -18,6 +18,14 @@
       "transport": "streamable_http",
       "tokenEnv": "HOMEASSISTANT_TOKEN",
       "timeoutSeconds": 30
+    },
+    {
+      "name": "n8n",
+      "url": "http://mcp-server:8000/mcp",
+      "enabled": true,
+      "prefix": "n8n_",
+      "transport": "streamable_http",
+      "timeoutSeconds": 30
     }
   ]
 }
