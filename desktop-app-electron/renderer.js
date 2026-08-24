@@ -82,21 +82,31 @@ function setRecordingStatus(message = '', statusClass = '') {
   }
 }
 
+const MIC_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>';
+const STOP_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"></rect></svg>';
+const SPINNER_ICON = '<svg class="spin-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9"></path></svg>';
+
 function setIdleRecordUi() {
-  recordButton.textContent = 'Record';
+  recordButton.innerHTML = MIC_ICON;
   recordButton.disabled = false;
+  recordButton.setAttribute('aria-label', 'Start recording');
+  recordButton.setAttribute('title', 'Start recording');
   setRecordingStatus('', '');
 }
 
 function setRecordingUi() {
-  recordButton.textContent = 'Stop';
+  recordButton.innerHTML = STOP_ICON;
   recordButton.disabled = false;
+  recordButton.setAttribute('aria-label', 'Stop recording');
+  recordButton.setAttribute('title', 'Stop recording');
   setRecordingStatus('Recording... click Stop when you are done.', 'recording');
 }
 
 function setProcessingUi() {
-  recordButton.textContent = 'Transcribing...';
+  recordButton.innerHTML = SPINNER_ICON;
   recordButton.disabled = true;
+  recordButton.setAttribute('aria-label', 'Transcribing');
+  recordButton.setAttribute('title', 'Transcribing');
   setRecordingStatus('Transcribing and sending your message...', 'processing');
 }
 
@@ -111,7 +121,7 @@ function createThread(title = DEFAULT_THREAD_TITLE) {
   state.currentThreadId = id;
   renderThreads();
   renderMessages();
-  publishDebugState();
+  notifyStateChanged();
   return thread;
 }
 
@@ -142,7 +152,7 @@ function renderThreads() {
     item.addEventListener('click', () => {
       state.currentThreadId = thread.id;
       renderMessages();
-      publishDebugState();
+      notifyStateChanged();
     });
     threadListEl.appendChild(item);
   });
@@ -167,7 +177,7 @@ function deleteThread(threadId) {
 
   renderThreads();
   renderMessages();
-  publishDebugState();
+  notifyStateChanged();
 }
 
 function renderMessages() {
@@ -198,6 +208,50 @@ function renderMessages() {
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
+let thinkingIntervalId = null;
+let thinkingRowEl = null;
+
+function showThinkingIndicator() {
+  hideThinkingIndicator();
+
+  const row = document.createElement('div');
+  row.className = 'message-row assistant';
+
+  const avatar = document.createElement('img');
+  avatar.className = 'avatar';
+  avatar.src = 'img/jarvis.png';
+  avatar.alt = 'assistant';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'message assistant thinking-message';
+
+  row.appendChild(avatar);
+  row.appendChild(bubble);
+  messagesEl.appendChild(row);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+
+  thinkingRowEl = row;
+
+  let dotCount = 0;
+  const tick = () => {
+    dotCount = (dotCount % 3) + 1;
+    bubble.textContent = `Jarvis is thinking${'.'.repeat(dotCount)}`;
+  };
+  tick();
+  thinkingIntervalId = setInterval(tick, 450);
+}
+
+function hideThinkingIndicator() {
+  if (thinkingIntervalId !== null) {
+    clearInterval(thinkingIntervalId);
+    thinkingIntervalId = null;
+  }
+  if (thinkingRowEl) {
+    thinkingRowEl.remove();
+    thinkingRowEl = null;
+  }
+}
+
 function addMessage(role, text, debug = null) {
   const thread = state.threads.find((item) => item.id === state.currentThreadId);
   if (!thread) {
@@ -206,7 +260,7 @@ function addMessage(role, text, debug = null) {
 
   thread.messages.push({ role, text, debug });
   renderMessages();
-  publishDebugState();
+  notifyStateChanged();
 }
 
 function buildDebugSnapshot() {
@@ -230,6 +284,20 @@ function publishDebugState() {
   if (window.debugBridge && typeof window.debugBridge.updateDebugState === 'function') {
     window.debugBridge.updateDebugState(buildDebugSnapshot());
   }
+}
+
+function persistThreads() {
+  if (window.threadsBridge && typeof window.threadsBridge.save === 'function') {
+    window.threadsBridge.save({
+      threads: state.threads,
+      currentThreadId: state.currentThreadId,
+    });
+  }
+}
+
+function notifyStateChanged() {
+  publishDebugState();
+  persistThreads();
 }
 
 async function openDebugWindow() {
@@ -276,7 +344,7 @@ async function generateThreadTitle(thread, userText, assistantText) {
 
     thread.title = title.length > 60 ? `${title.slice(0, 57)}...` : title;
     renderThreads();
-    publishDebugState();
+    notifyStateChanged();
   } catch {
     // Keep the default title if generation fails.
   }
@@ -295,6 +363,7 @@ async function sendTextMessage() {
   const threadId = state.currentThreadId;
   addMessage('user', text);
   inputEl.value = '';
+  showThinkingIndicator();
 
   try {
     const response = await fetch(`${DEFAULT_AGENT_BASE_URL}/agent/run`, {
@@ -319,6 +388,7 @@ async function sendTextMessage() {
 
     const payload = await response.json();
     const answer = payload.result || 'No response';
+    hideThinkingIndicator();
     addMessage('assistant', answer, payload.debug || null);
 
     const thread = state.threads.find((item) => item.id === threadId);
@@ -326,6 +396,7 @@ async function sendTextMessage() {
       generateThreadTitle(thread, text, answer);
     }
   } catch (error) {
+    hideThinkingIndicator();
     addMessage('assistant', `Error: ${error.message}`);
   }
 }
@@ -429,6 +500,28 @@ async function recordAudio() {
   }
 }
 
+async function initThreads() {
+  let loaded = null;
+  if (window.threadsBridge && typeof window.threadsBridge.load === 'function') {
+    try {
+      loaded = await window.threadsBridge.load();
+    } catch {
+      loaded = null;
+    }
+  }
+
+  if (loaded && Array.isArray(loaded.threads) && loaded.threads.length > 0) {
+    state.threads = loaded.threads;
+    const hasCurrent = state.threads.some((thread) => thread.id === loaded.currentThreadId);
+    state.currentThreadId = hasCurrent ? loaded.currentThreadId : state.threads[0].id;
+    renderThreads();
+    renderMessages();
+    publishDebugState();
+  } else {
+    createThread();
+  }
+}
+
 sendButton.addEventListener('click', sendTextMessage);
 inputEl.addEventListener('keydown', (event) => {
   if (event.key === 'Enter') {
@@ -441,7 +534,7 @@ newChatButton.addEventListener('click', () => {
   createThread();
 });
 
-createThread();
+initThreads();
 setIdleRecordUi();
 refreshServiceStatus();
 setInterval(refreshServiceStatus, HEALTH_CHECK_INTERVAL_MS);

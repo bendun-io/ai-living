@@ -20,6 +20,36 @@ function getDebugPrefsPath() {
   return path.join(app.getPath('userData'), 'debug-window-prefs.json');
 }
 
+function getThreadsPath() {
+  return path.join(app.getPath('userData'), 'threads.json');
+}
+
+function loadThreadsFromDisk() {
+  try {
+    const raw = fs.readFileSync(getThreadsPath(), 'utf8');
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object' && Array.isArray(parsed.threads)) {
+      return {
+        threads: parsed.threads,
+        currentThreadId: parsed.currentThreadId || null,
+      };
+    }
+  } catch {
+    // No saved threads yet, or file is unreadable/corrupt.
+  }
+  return { threads: [], currentThreadId: null };
+}
+
+function saveThreadsToDisk(data) {
+  try {
+    const threads = Array.isArray(data && data.threads) ? data.threads : [];
+    const currentThreadId = (data && data.currentThreadId) || null;
+    fs.writeFileSync(getThreadsPath(), JSON.stringify({ threads, currentThreadId }, null, 2), 'utf8');
+  } catch {
+    // Non-fatal: ignore persistence failures.
+  }
+}
+
 function loadDebugPrefs() {
   try {
     const raw = fs.readFileSync(getDebugPrefsPath(), 'utf8');
@@ -100,6 +130,7 @@ function ensureDebugWindow() {
     title: 'AI Living Debug',
     backgroundColor: '#0b1220',
     autoHideMenuBar: true,
+    icon: path.join(__dirname, 'img', 'jarvis.png'),
     parent: mainWindow || undefined,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -154,6 +185,7 @@ function createWindow() {
     minHeight: 600,
     backgroundColor: '#0f172a',
     autoHideMenuBar: true,
+    icon: path.join(__dirname, 'img', 'jarvis.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -170,6 +202,12 @@ ipcMain.handle('debug-window-open', () => {
 });
 
 ipcMain.handle('debug-window-get-state', () => debugState);
+
+ipcMain.handle('threads-load', () => loadThreadsFromDisk());
+
+ipcMain.on('threads-save', (_event, data) => {
+  saveThreadsToDisk(data);
+});
 
 ipcMain.on('debug-window-update', (_event, state) => {
   if (state && typeof state === 'object') {

@@ -5,6 +5,11 @@ contextBridge.exposeInMainWorld('appInfo', {
   version: '0.1.0',
 });
 
+contextBridge.exposeInMainWorld('threadsBridge', {
+  load: () => ipcRenderer.invoke('threads-load'),
+  save: (data) => ipcRenderer.send('threads-save', data),
+});
+
 contextBridge.exposeInMainWorld('debugBridge', {
   openDebugWindow: () => ipcRenderer.invoke('debug-window-open'),
   updateDebugState: (state) => ipcRenderer.send('debug-window-update', state),

@@ -79,6 +79,48 @@ button, input {
   filter: brightness(1.08);
 }
 
+.primary-button:disabled, .secondary-button:disabled {
+  cursor: default;
+  filter: brightness(0.85);
+}
+
+.new-chat-button {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.icon-button {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.icon-button svg {
+  display: block;
+}
+
+.spin-icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .thread-list {
   list-style: none;
   padding: 0;
@@ -179,6 +221,11 @@ button, input {
 
 .message.assistant {
   background: var(--assistant);
+}
+
+.thinking-message {
+  color: var(--muted);
+  font-style: italic;
 }
 
 .composer {
