@@ -1,0 +1,43 @@
+meta {
+  name: MCP - Calendar Read
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{n8n_mcp_base_url}}
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+  Accept: application/json, text/event-stream
+  Mcp-Session-Id: {{mcp_session_id}}
+}
+
+body:json {
+  {
+    "jsonrpc": "2.0",
+    "id": 3,
+    "method": "tools/call",
+    "params": {
+      "name": "calendar_read",
+      "arguments": {
+        "starttime": "2026-08-22T01:00:00+02:00",
+        "endtime": "2026-08-29T01:00:00+02:00"
+      }
+    }
+  }
+}
+
+assert {
+  res.status: eq 200
+}
+
+docs {
+  Calls the `calendar_read` tool (n8n/mcp-server/workflows/calendar_read.yaml)
+  through the MCP server, rather than hitting the n8n webhook directly like
+  "Calendar Google Read" does. Requires a live session: run "MCP - Initialize"
+  then "MCP - Initialized Notification" first.
+}

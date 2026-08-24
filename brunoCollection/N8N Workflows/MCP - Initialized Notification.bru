@@ -1,0 +1,32 @@
+meta {
+  name: MCP - Initialized Notification
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{n8n_mcp_base_url}}
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+  Accept: application/json, text/event-stream
+  Mcp-Session-Id: {{mcp_session_id}}
+}
+
+body:json {
+  {
+    "jsonrpc": "2.0",
+    "method": "notifications/initialized"
+  }
+}
+
+docs {
+  Completes the MCP handshake by acknowledging the server's initialize
+  response. This is a JSON-RPC *notification* (no `id`, no result body) — the
+  server should answer with an empty 202. Run "MCP - Initialize" first so
+  `mcp_session_id` is set, then this, before "MCP - List Tools" or
+  "MCP - Calendar Read".
+}

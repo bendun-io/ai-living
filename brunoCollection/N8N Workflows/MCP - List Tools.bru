@@ -1,0 +1,37 @@
+meta {
+  name: MCP - List Tools
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{n8n_mcp_base_url}}
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+  Accept: application/json, text/event-stream
+  Mcp-Session-Id: {{mcp_session_id}}
+}
+
+body:json {
+  {
+    "jsonrpc": "2.0",
+    "id": 2,
+    "method": "tools/list",
+    "params": {}
+  }
+}
+
+assert {
+  res.status: eq 200
+}
+
+docs {
+  Lists the possible actions (tools) the n8n MCP server currently exposes —
+  one entry per workflow YAML under `n8n/mcp-server/workflows/`, e.g.
+  `calendar_read`. Requires a live session: run "MCP - Initialize" then
+  "MCP - Initialized Notification" first.
+}

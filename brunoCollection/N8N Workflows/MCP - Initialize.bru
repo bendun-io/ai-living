@@ -1,0 +1,54 @@
+meta {
+  name: MCP - Initialize
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{n8n_mcp_base_url}}
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+  Accept: application/json, text/event-stream
+}
+
+body:json {
+  {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {
+      "protocolVersion": "2025-06-18",
+      "capabilities": {},
+      "clientInfo": {
+        "name": "bruno",
+        "version": "1.0.0"
+      }
+    }
+  }
+}
+
+assert {
+  res.status: eq 200
+}
+
+script:post-response {
+  const headers = res.headers || {};
+  const sessionId = headers["mcp-session-id"] || headers["Mcp-Session-Id"];
+
+  if (sessionId) {
+    bru.setVar("mcp_session_id", sessionId);
+  }
+}
+
+docs {
+  Opens an MCP session against the n8n MCP server (`n8n/mcp-server`) over the
+  Streamable HTTP transport. Run this first: it stores the returned
+  `Mcp-Session-Id` response header as the `mcp_session_id` var, which every
+  other MCP request in this folder sends back as a header. Run
+  "MCP - Initialized Notification" next to complete the handshake before
+  calling "MCP - List Tools" or "MCP - Calendar Read".
+}
