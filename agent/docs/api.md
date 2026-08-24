@@ -387,8 +387,6 @@ the model inferred — lands in the callback consumer's logs.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `AGENT_HOST` | `0.0.0.0` | Read into settings; the Dockerfile's uvicorn bind is hardcoded |
-| `AGENT_PORT` | `8000` | Same — changing it does not move the listening port |
 | `OPENAI_API_KEY` | — | Set → OpenAI planner; unset → offline `LocalLLMClient` |
 | `OPENAI_MODEL` | `gpt-4.1-mini` | Chat completions model id |
 | `CALLBACK_URL` | — | Result delivery target; unset disables callbacks |
@@ -417,8 +415,12 @@ For host-routed development use `UTILS_LISTS_BASE_URL=http://host.docker.interna
    callback attempt all happen before the response returns.
 4. **Treat a 500 as a lost turn.** No callback fires, so a callback-only flow needs its own
    timeout.
-5. **Guard against loop exhaustion** — `result == request.message` with a non-empty `toolLog`
-   means the agent ran out of iterations.
+5. **Guard against loop exhaustion** — a `result` matching the fixed string "The agent's reasoning
+   loop has been exhausted after N step(s) without reaching a final answer. No solution was found."
+   means the agent ran out of iterations without the model producing a final answer. It is still a
+   `200` with a normal callback, not an error status — there is no machine-readable flag yet, so
+   matching on the message text (or checking for a non-trivial `toolLog` alongside a suspiciously
+   generic result) is the only detection available today.
 6. **`debug.skillsRead` reflects explicit lookups only.** It lists the skills the run pulled up
    via `search_skills`; an empty list means none were consulted, not that none exist. Every
    skill's one-line summary is always in the system prompt regardless — use `GET /health` and the

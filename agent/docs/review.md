@@ -34,7 +34,7 @@ and [C2](#c2) is closed.
 | [C6](#c6) | ✅ **Fixed** — startup crashed when the skills catalogue was not found | High | XS |
 | [C3](#c3) | Malformed tool-call arguments corrupt the transcript — **verified** | High | XS |
 | [C4](#c4) | `tool_call.id` dropped; parallel calls to one tool collide | High | XS |
-| [C5](#c5) | Loop exhaustion silently returns the user's own message | High | XS |
+| [C5](#c5) | ✅ **Fixed** — loop exhaustion silently returned the user's own message | High | XS |
 | [R1](#r1) | Any run exception 500s with no callback — the caller hangs | High | S |
 | [R2](#r2) | Tool discovery is startup-only with no retry | Medium | S |
 | [R3](#r3) | Memory is in-process, unbounded, and `MEMORY_PROVIDER` is ignored | Medium | M |
@@ -49,11 +49,11 @@ and [C2](#c2) is closed.
 | [Q2](#q2) | ✅ **Fixed** — `debug.skillsRead` reported every skill, not the ones used | Low | XS |
 | [Q3](#q3) | `tool_context` is built and thrown away | Low | XS |
 | [Q4](#q4) | `OpenAIResponsesClient` doesn't use the Responses API | Low | XS |
-| [Q5](#q5) | MCP adapter is a stub that fails open | Low | S |
+| [Q5](#q5) | ✅ **Fixed** — MCP adapter is now a real client, not a stub | Low | S |
 | [Q6](#q6) | ✅ **Fixed** — registry allowed *silent* name collisions | Low | XS |
 | [Q7](#q7) | Deprecated `@app.on_event`; racy lazy `initialize()` | Low | XS |
 | [Q8](#q8) | New `httpx.AsyncClient` per call | Low | XS |
-| [Q9](#q9) | `AGENT_HOST` / `AGENT_PORT` are read but have no effect | Low | XS |
+| [Q9](#q9) | ✅ **Fixed** — `AGENT_HOST` / `AGENT_PORT` were read but had no effect; now removed | Low | XS |
 | [Q10](#q10) | Loose typing at the seams (`llm_client: Any`, untyped `run`) | Low | S |
 
 ---
@@ -261,17 +261,34 @@ Verified by building and running the image with no mount: it now reaches `health
 the resolved directory contains `catalog.yml` and is not the package dir, and that a missing
 catalogue yields the fallback skills instead of raising.
 
-### <a id="c5"></a>C5 — Loop exhaustion silently returns the user's message · High
+### <a id="c5"></a>C5 — Loop exhaustion silently returned the user's message · High · ✅ Fixed
 
-`result_text` is initialised to `request.message` and only overwritten by a `final` plan. If the
-planner still wants tools after `max_iterations` (5), the `for` loop ends normally and the agent
-returns the caller's own input as the answer — HTTP 200, no error field, callback fired as if it
-succeeded.
+**Was:** `result_text` was initialised to `request.message` and only overwritten by a `final` plan.
+If the planner still wanted tools after `max_iterations`, the `for` loop ended normally and the
+agent returned the caller's own input as the answer — HTTP 200, no error field, callback fired as
+if it succeeded.
 
-**Fix:** track whether a final answer was produced; on exhaustion either (a) make one last LLM call
-with `tool_choice="none"` to force a summary, or (b) return an explicit
-`"Stopped after N steps without a final answer"` plus a machine-readable flag on the response. Also
-make `max_iterations` configurable — it's currently a hardcoded field default.
+**Now:** [`AgentService.run`](../src/agent/executor.py) tracks a `reached_final_answer` flag,
+set only when the loop breaks on `plan.kind == "final"`. After the loop, if that flag is still
+`False`, `result_text` is overwritten with a fixed message:
+
+```python
+LOOP_EXHAUSTED_MESSAGE = (
+    "The agent's reasoning loop has been exhausted after {max_iterations} step(s) "
+    "without reaching a final answer. No solution was found."
+)
+```
+
+So a run that never converges now reports an explicit, recognisable failure string instead of
+echoing the caller's own input back at them. It is still delivered as a normal `200` response
+through both the HTTP body and the callback — this fix makes exhaustion *legible*, not
+machine-detectable by a status code. A caller that wants to branch on it must still match against
+the fixed message text (or check `toolLog` non-empty combined with the result not matching any
+sensible answer), which the API doc now calls out explicitly.
+
+**Still open:** no machine-readable flag on `AgentRunResponse` (e.g. `finishReason:
+"loop_exhausted"`), no last-ditch `tool_choice="none"` call to force a real summary of what was
+tried, and `max_iterations` is still a hardcoded field default rather than driven by `Settings`.
 
 ### <a id="q2"></a>Q2 — `debug.skillsRead` listed every skill · Low · ✅ Fixed
 
@@ -468,14 +485,39 @@ person who touches it.
 server-side conversation state via `previous_response_id`, making the unused `LLMPlan.response_id`
 field meaningful and reducing the memory problem in [R3](#r3).
 
-### <a id="q5"></a>Q5 — MCP adapter fails open · Low
+### <a id="q5"></a>Q5 — MCP adapter is a real client, not a stub · Low · ✅ Fixed
 
-`ENABLE_MCP=true` produces no tools and no warning. Worse, `MCPToolAdapter.execute` returns
-`{"status": "not_implemented"}` as a **successful** `ToolResult` — a model receiving that has no
+**Was:** `ENABLE_MCP=true` produced no tools and no warning. `MCPToolAdapter.execute` returned
+`{"status": "not_implemented"}` as a **successful** `ToolResult` — a model receiving that had no
 way to know the call did nothing.
 
-**Fix:** until it's implemented, raise `NotImplementedError` from `execute` (the executor already
-converts that to `ok=False`) and log a warning when `ENABLE_MCP` is set.
+**Now:** [`adapters/mcp.py`](../src/tools/adapters/mcp.py) talks to real MCP servers over the
+official `mcp` SDK (`streamable_http` or `sse` transport), reading `MCP_SERVERS_FILE` (default
+[`config/mcp-servers.json`](../config/mcp-servers.json)) via `load_mcp_server_configs` /
+`parse_mcp_server_configs`. Per-server config supports `url`, `prefix` (auto-derived from the
+server name if omitted, to avoid two servers' same-named tools colliding — see
+`default_prefix`), `transport`, `token`/`tokenEnv`, `headers` (with `${VAR}` expansion so secrets
+stay out of the committed file), and `timeoutSeconds`.
+
+`AgentRuntime.initialize()` loads the config, calls `refresh_mcp_tools()` once at startup, and — if
+`MCP_REFRESH_INTERVAL_SECONDS > 0` — starts a background task that rediscovers on that interval.
+Each server is refreshed independently: a server that errors keeps the tools it registered last
+time (`mcp_tool_names` tracks what to unregister on the *next* successful refresh) rather than
+losing them on a transient blip. `MCPToolAdapter.call_tool` re-raises a tool-level MCP error as
+`RuntimeError`, which `ToolExecutor` turns into an ordinary failed `ToolResult` — the
+"successful no-op" failure mode above no longer exists.
+
+Config errors, per-server tool counts, and last success/attempt timestamps are all surfaced in
+`/health` (`mcpConfigError`, `mcpServers[]`), closing the "no warning" half of the original finding
+too. Covered by [`tests/mcp_adapter_smoke.py`](../tests/mcp_adapter_smoke.py): config parsing,
+prefix derivation, the refresh swap, and the keep-previous-tools-on-failure rule, all against a
+fake adapter so the suite needs no live MCP server.
+
+**Still open:** a session is opened fresh per `list_tools`/`call_tool` call rather than held open
+(see [`adapters/mcp.py`](../src/tools/adapters/mcp.py) — a deliberate tradeoff for restart
+resilience, but it costs a round trip of session setup per call); no per-server circuit breaker, so
+a server that is merely slow (rather than down) still pays its full `timeoutSeconds` on every
+call.
 
 ### <a id="q6"></a>Q6 — Registry allowed *silent* name collisions · Low · ✅ Fixed
 
@@ -521,14 +563,19 @@ open a client per invocation, discarding connection pooling and paying TLS setup
 
 **Fix:** create one shared `AsyncClient` at startup and close it in the lifespan shutdown.
 
-### <a id="q9"></a>Q9 — `AGENT_HOST` / `AGENT_PORT` have no effect · Low
+### <a id="q9"></a>Q9 — `AGENT_HOST` / `AGENT_PORT` had no effect · Low · ✅ Fixed
 
-Both are parsed into `Settings` and never used; the Dockerfile hardcodes
-`--host 0.0.0.0 --port 8000`. Setting `AGENT_PORT=9000` changes nothing, which is the worst kind
-of config: it looks like it works.
+**Was:** both were parsed into `Settings` and never used; the Dockerfile hardcoded
+`--host 0.0.0.0 --port 8000`. Setting `AGENT_PORT=9000` changed nothing, which is the worst kind
+of config: it looked like it worked.
 
-**Fix:** either drive uvicorn from them via a `__main__` entrypoint, or delete them from `Settings`
-and the docs.
+**Now:** taking the "delete" branch of the original fix — [`config.py`](../src/config.py) no
+longer has `agent_host` / `agent_port` fields or `AGENT_HOST` / `AGENT_PORT` parsing, and the
+variables are gone from [`docker-compose.yml`](../docker-compose.yml) and [`.env`](../.env). The
+Dockerfile's hardcoded `--host 0.0.0.0 --port 8000` is now the only place the bind address lives,
+so there is no config that silently does nothing. If the port ever needs to be configurable, that
+means wiring a real `__main__` entrypoint that reads `Settings` and passes it to uvicorn — not
+resurrecting the unused fields.
 
 ### <a id="q10"></a>Q10 — Loose typing at the seams · Low
 
@@ -551,14 +598,16 @@ pyright to the dev requirements.
 3. **Fix the offline planner or retire it** — [C1](#c1). Given that it silently mutates data,
    consider making it explicitly opt-in (`ENABLE_LOCAL_PLANNER=true`) and read-only by default,
    rather than the automatic fallback it is today.
-4. **Make failures visible** — [R1](#r1), [C5](#c5), [O2](#o2), [O3](#o3). Errors should reach the
-   callback, and `/health` should say which planner is running.
+4. **Make failures visible** — [R1](#r1), ~~[C5](#c5)~~ done, [O2](#o2), [O3](#o3). Errors should
+   reach the callback, and `/health` should say which planner is running. [C5](#c5)'s fix is a
+   fixed string, not a status code — a machine-readable `finishReason` is still worth adding.
 5. **Make it survivable** — [R2](#r2), [R3](#r3), [R4](#r4), [O1](#o1). Discovery retry, persistent
    memory, LLM timeouts, callback retry.
 6. **Lock in the fixes** — [Q1](#q1). Rename the tests, get them running in CI with the full tool
    registry, and add loop-level unit tests. The scripted-stub LLM client added for [Q2](#q2) in
    [`tests/debug_trace_smoke.py`](../tests/debug_trace_smoke.py) is the seam for this: it drives
-   the loop deterministically, which is exactly what [C3](#c3), [C4](#c4) and [C5](#c5) need.
+   the loop deterministically, which is exactly what [C3](#c3), [C4](#c4) and the [C5](#c5)
+   regression test still need.
 
 Items in §1–2 are what stand between this and a service that can be exposed to anything other
 than localhost. Everything from §5 onward is what stands between it and one you don't have to

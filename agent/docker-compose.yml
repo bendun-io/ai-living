@@ -5,8 +5,6 @@ services:
       dockerfile: Dockerfile
     container_name: ai-living-agent
     environment:
-      AGENT_HOST: 0.0.0.0
-      AGENT_PORT: 8000
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
       CALLBACK_URL: ${CALLBACK_URL:-http://n8n:5678/webhook/agentFinished}

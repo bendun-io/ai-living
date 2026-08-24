@@ -15,6 +15,12 @@ from src.tools.registry import ToolRegistry
 from .planner import build_prompt_bundle
 
 
+LOOP_EXHAUSTED_MESSAGE = (
+    "The agent's reasoning loop has been exhausted after {max_iterations} step(s) "
+    "without reaching a final answer. No solution was found."
+)
+
+
 @dataclass(slots=True)
 class AgentService:
     llm_client: Any
@@ -37,11 +43,13 @@ class AgentService:
         tools_used: list[ToolUsageTrace] = []
         skills_read: list[str] = []
         result_text = request.message
+        reached_final_answer = False
 
         for _ in range(self.max_iterations):
             plan = await self.llm_client.plan(messages, self.tool_registry.definitions())
             if plan.kind == "final":
                 result_text = plan.final_answer or result_text
+                reached_final_answer = True
                 break
 
             assistant_message = self._build_assistant_tool_message(plan.tool_calls)
@@ -59,6 +67,9 @@ class AgentService:
                         "content": record.result.model_dump_json(),
                     }
                 )
+
+        if not reached_final_answer:
+            result_text = LOOP_EXHAUSTED_MESSAGE.format(max_iterations=self.max_iterations)
 
         debug_trace = DebugTrace(skillsRead=skills_read, toolsUsed=tools_used)
 

@@ -25,7 +25,7 @@ orchestration layer — n8n owns triggers, scheduling, retries, integrations and
    ┌───────┴───────┬──────────────┬───────────────┐
    ▼               ▼              ▼               ▼
  Local tools   REST adapter   MCP adapter     (future)
- (in-process)  utils-lists     (stub)
+ (in-process)  utils-lists   (mcp SDK client)
                    │
                    ▼
             utils/lists-service
@@ -34,6 +34,9 @@ orchestration layer — n8n owns triggers, scheduling, retries, integrations and
 
    Agent ──► POST $CALLBACK_URL ──► n8n callback workflow
 ```
+
+The MCP adapter is a real client (§5.3), not a stub — it connects to remote MCP servers over
+`streamable_http` or `sse` using the official `mcp` SDK.
 
 The agent returns its result **twice**: synchronously in the HTTP response *and* asynchronously
 to the configured callback URL. See §4.
@@ -134,6 +137,9 @@ AgentRuntime.run ──► AgentService.run
         │            record trace  →  ToolExecutor.execute  →  append {"role":"tool", ...}
         │            if it was search_skills: record the skill names it returned
         │
+        │      if the loop exhausted max_iterations without a "final" plan:
+        │        result_text = LOOP_EXHAUSTED_MESSAGE.format(max_iterations)
+        │
         ├─ 5. debug = DebugTrace(skillsRead=skills consulted, toolsUsed=[...])
         ├─ 6. build AgentRunResponse
         ├─ 7. memory.append(user prompt); memory.append(final answer)
@@ -143,9 +149,13 @@ AgentRuntime.run ──► AgentService.run
 
 Notes on the loop as implemented:
 
-- `result_text` is initialised to `request.message`. If the loop exhausts all ten iterations
-  without the model producing a final answer, the agent returns the **user's own message** as the
-  result, with no error marker.
+- `result_text` is initialised to `request.message`, but that is only a placeholder now: if the
+  loop exhausts `max_iterations` without the model producing a `"final"` plan,
+  `result_text` is overwritten with a fixed message — `"The agent's reasoning loop has been
+  exhausted after N step(s) without reaching a final answer. No solution was found."` — instead of
+  echoing the caller's own input back. This is still a plain `200` response with no error marker or
+  machine-readable flag; callers detect it by matching the fixed string (see
+  [`review.md#c5`](./review.md#c5)).
 - `prompt_bundle.tool_context` is computed but never added to `messages`. Tool awareness reaches
   the model exclusively through the native `tools` parameter of the OpenAI call, so the string is
   currently dead weight.
@@ -401,8 +411,6 @@ All configuration is environment-driven through the frozen-ish `Settings` datacl
 
 | Variable | Default | Effect |
 | --- | --- | --- |
-| `AGENT_HOST` | `0.0.0.0` | Read into settings; the Dockerfile hardcodes uvicorn's bind |
-| `AGENT_PORT` | `8000` | Same as above |
 | `OPENAI_API_KEY` | — | Selects `OpenAIResponsesClient` vs `LocalLLMClient` |
 | `OPENAI_MODEL` | `gpt-4.1-mini` | Model id for chat completions |
 | `CALLBACK_URL` | — | Result delivery target; unset disables callbacks |

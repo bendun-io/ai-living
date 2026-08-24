@@ -28,8 +28,6 @@ def _parse_int(value: str | None, default: int) -> int:
 
 @dataclass(slots=True)
 class Settings:
-    agent_host: str = "0.0.0.0"
-    agent_port: int = 8000
     openai_api_key: str | None = None
     openai_model: str = "gpt-4.1-mini"
     callback_url: str | None = None
@@ -44,8 +42,6 @@ class Settings:
     @classmethod
     def from_env(cls) -> "Settings":
         return cls(
-            agent_host=os.getenv("AGENT_HOST", "0.0.0.0"),
-            agent_port=int(os.getenv("AGENT_PORT", "8000")),
             openai_api_key=os.getenv("OPENAI_API_KEY") or None,
             openai_model=os.getenv("OPENAI_MODEL", "gpt-4.1-mini"),
             callback_url=os.getenv("CALLBACK_URL") or None,

@@ -152,8 +152,6 @@ The Docker Compose setup points `CALLBACK_URL` to a host-side listener via `host
 
 These are the key variables read by the service:
 
-- `AGENT_HOST`
-- `AGENT_PORT`
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL`
 - `CALLBACK_URL`
