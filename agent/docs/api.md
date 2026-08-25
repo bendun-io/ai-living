@@ -398,6 +398,7 @@ the model inferred — lands in the callback consumer's logs.
 | `ENABLE_UTILS_LISTS_TOOLS` | `false` | Enables REST tool discovery |
 | `UTILS_LISTS_BASE_URL` | `http://utils-lists:8010` | Discovery + execution base URL |
 | `SKILLS_DIR` | — | Overrides skill catalog location (`/app/skills` in Compose) |
+| `PERSONA_FILE` | — | Overrides the persona/system-prompt file (`config/persona.md` by default) |
 
 Booleans accept `1`, `true`, `yes`, `on` (case-insensitive). Lists are comma-separated.
 

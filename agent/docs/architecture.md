@@ -384,7 +384,26 @@ against the `SKILL_SEARCH_TOOL_NAME` constant exported by
 
 ---
 
-## 8. Memory
+## 8. Persona
+
+The system prompt's identity, tone, and boundaries live in
+[`config/persona.md`](../config/persona.md), a plain-markdown file loaded by
+`load_persona()` in [`prompts.py`](../src/agent/prompts.py) — not hardcoded in Python.
+Resolution order mirrors `SkillLibrary._default_skills_dir()` (§7):
+
+1. `$PERSONA_FILE` if it points at an existing file
+2. otherwise the nearest ancestor directory containing `config/persona.md`
+3. otherwise an in-code fallback one-liner (`_FALLBACK_PERSONA`)
+
+`config/` is baked into the Docker image and bind-mounted read-only by Compose (same treatment as
+`mcp-servers.json`), so editing `agent/config/persona.md` and restarting the agent is enough to
+change identity, tone, or behavioral boundaries — no code change or rebuild required. `SkillLibrary
+.brief_context()` is appended after the persona text, so the persona always precedes the
+always-on skill summaries in the final system prompt (`build_system_prompt`).
+
+---
+
+## 9. Memory
 
 `MemoryStore` is a plain in-process `dict[str, list[dict]]` keyed by `conversationId`. It has no
 eviction, no size cap, no persistence, and no locking. `MEMORY_PROVIDER` is read into `Settings`
@@ -395,7 +414,7 @@ uvicorn workers, and grows unboundedly for long-lived conversation ids.
 
 ---
 
-## 9. Callbacks
+## 10. Callbacks
 
 `CallbackClient` POSTs the `CallbackPayload` to `CALLBACK_URL` if configured, over the
 `AgentRuntime`'s shared `httpx.AsyncClient` (30 s timeout). Any exception is caught and logged at
@@ -407,7 +426,7 @@ behind the same `send(payload)` signature, as `Spec.md` anticipates.
 
 ---
 
-## 10. Configuration
+## 11. Configuration
 
 All configuration is environment-driven through the frozen-ish `Settings` dataclass:
 
@@ -424,13 +443,18 @@ All configuration is environment-driven through the frozen-ish `Settings` datacl
 | `ENABLE_UTILS_LISTS_TOOLS` | `false` | Enables REST tool discovery |
 | `UTILS_LISTS_BASE_URL` | `http://utils-lists:8010` | Discovery + execution base URL |
 | `SKILLS_DIR` | — | Overrides skill catalog location |
+| `PERSONA_FILE` | — | Overrides persona/system-prompt file location (§8) |
+
+Note `SKILLS_DIR` and `PERSONA_FILE` are read directly by `SkillLibrary` and `load_persona()`
+respectively, not through `Settings` — they follow the same env-var-first, walk-to-ancestor
+resolution but aren't part of the dataclass.
 
 Booleans accept `1/true/yes/on`. `MCP_SERVERS_FILE` may be absolute or relative; a relative
 path is resolved against the working directory first, then against the `agent/` project root.
 
 ---
 
-## 11. Deployment
+## 12. Deployment
 
 [`Dockerfile`](../Dockerfile): `python:3.11-slim`, installs
 [`requirements.txt`](../requirements.txt) (FastAPI 0.115.6, uvicorn 0.34.0, httpx 0.28.1,
@@ -457,14 +481,15 @@ Because tool discovery and memory both live in the process, the service is curre
 
 ---
 
-## 12. Tests
+## 13. Tests
 
-Six scripts under [`tests/`](../tests):
+Seven scripts under [`tests/`](../tests):
 
-- `skill_library_smoke.py`, `local_planner_lists_smoke.py`, `debug_trace_smoke.py`,
-  `tool_registry_smoke.py`, `mcp_adapter_smoke.py` — pytest-style assert functions, runnable
-  in-process. `mcp_adapter_smoke.py` covers config parsing, prefixing, the refresh swap and the
-  keep-previous-tools-on-failure rule against a fake adapter, so it needs no MCP server.
+- `skill_library_smoke.py`, `persona_smoke.py`, `local_planner_lists_smoke.py`,
+  `debug_trace_smoke.py`, `tool_registry_smoke.py`, `mcp_adapter_smoke.py` — pytest-style assert
+  functions, runnable in-process. `mcp_adapter_smoke.py` covers config parsing, prefixing, the
+  refresh swap and the keep-previous-tools-on-failure rule against a fake adapter, so it needs no
+  MCP server.
 - `callback_smoke.py` — a full end-to-end harness that boots Docker Compose, starts a local HTTP
   listener as the callback target, exercises `/health` and `/agent/run`, and asserts the callback
   envelope.
@@ -474,7 +499,7 @@ The `*_smoke.py` naming does not match pytest's default discovery patterns (`tes
 
 ---
 
-## 13. Extension points, ranked by cost
+## 14. Extension points, ranked by cost
 
 | I want to… | Change needed |
 | --- | --- |
@@ -482,6 +507,7 @@ The `*_smoke.py` naming does not match pytest's default discovery patterns (`tes
 | Withhold a tool from agents | Add its name to that service's `AGENT_EXCLUDED_TOOLS`. **No agent code.** |
 | Add an in-process tool | Add a dataclass to `adapters/local.py`, list it in `build_local_tools` |
 | Add a skill | Add an entry to `skills/catalog.yml` and a `Skill.md` |
+| Change identity, tone, or boundaries | Edit `config/persona.md`, restart. **No agent code.** |
 | Swap the LLM provider | New class with `.plan(messages, tools)`, one branch in `initialize()` |
 | Swap result delivery | New class with `.send(payload)` |
 | Persist memory | Implement the `load`/`append` pair over Postgres/Redis and honour `MEMORY_PROVIDER` |
