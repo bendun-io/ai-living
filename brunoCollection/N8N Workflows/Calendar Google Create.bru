@@ -1,0 +1,23 @@
+meta {
+  name: Calendar Google Create
+  type: http
+  seq: 7
+}
+
+post {
+  url: https://n8n.bendun.io/webhook-test/e56606ca-d31f-44e0-b21d-8ac585597ca5
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "starttime": "2026-08-29T01:00:00+02:00",
+    "endtime": "2026-08-29T01:00:00+02:00",
+    "attendees": "2026-08-22T01:00:00+02:00",
+    "summary": "The summary",
+    "description": "the description",
+    "rrule": "daily",
+    "allday": "false"
+  }
+}
