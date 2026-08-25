@@ -1,17 +1,18 @@
 meta {
-  name: Calendar Google Create
+  name: Calendar Google Update
   type: http
-  seq: 7
+  seq: 8
 }
 
 post {
-  url: https://n8n.bendun.io/webhook-test/e56606ca-d31f-44e0-b21d-8ac585597ca5
+  url: https://n8n.bendun.io/webhook-test/4c78d8b1-52a0-4200-8ef3-a2190206888a
   body: json
   auth: inherit
 }
 
 body:json {
   {
+    "eventid": "the-event-id",
     "starttime": "2026-08-29T01:00:00+02:00",
     "endtime": "2026-08-29T01:00:00+02:00",
     "attendees": "2026-08-22T01:00:00+02:00",
@@ -19,6 +20,6 @@ body:json {
     "description": "the description",
     "rrule": "daily",
     "allday": "false",
-    "location": "irgendwo"
+    "location": "Irgendwo"
   }
 }

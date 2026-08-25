@@ -1,10 +1,10 @@
 # workflows/create_customer.yaml
 
-name: calendar_create
-description: Creates events in the calendar.
+name: calendar_update
+description: Updates events in the calendar.
 
 n8n:
-  url: https://n8n.bendun.io/webhook/e56606ca-d31f-44e0-b21d-8ac585597ca5
+  url: https://n8n.bendun.io/webhook/4c78d8b1-52a0-4200-8ef3-a2190206888a
   auth:
     type: header
     key: X-API-Key
@@ -13,6 +13,9 @@ n8n:
 input:
   type: object
   properties:
+    eventid:
+      type: string
+      description: ID of the calendar event to update.
     starttime:
       type: string
       description: Start time of the calendar event in the format 2026-08-22T01:00:00+02:00.
@@ -28,19 +31,17 @@ input:
     rrule:
       type: string
       description: Recurrence rule of the calendar event in the format "FREQ=DAILY;INTERVAL=1".
-    allday:
-      type: boolean
-      description: Whether the calendar event is an all-day event. 
     location:
       type: string
       description: Location of the calendar event.
+    allday:
+      type: boolean
+      description: Whether the calendar event is an all-day event.
     attendees:
       type: string
       description: Attendees of the calendar event in the format "email@example.com,email2@example.com".
   required:
-    - starttime
-    - endtime
-    - summary
+    - eventid
 
 execution:
   timeout_seconds: 30
