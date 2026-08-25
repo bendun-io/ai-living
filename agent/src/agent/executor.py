@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import Any
 
@@ -132,7 +133,7 @@ class AgentService:
                     "type": "function",
                     "function": {
                         "name": invocation.name,
-                        "arguments": invocation.model_dump_json(exclude={"call_id"}),
+                        "arguments": json.dumps(invocation.arguments),
                     },
                 }
                 for invocation in invocations

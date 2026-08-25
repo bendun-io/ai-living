@@ -228,9 +228,10 @@ The production tool source. At startup it performs
 | `description` | Passed to the LLM |
 | `input_schema` | Passed to the LLM as JSON-Schema parameters |
 
-Entries missing `name` or `endpoint` are skipped. Each `execute` opens a fresh
-`httpx.AsyncClient` with a 30 s timeout, POSTs the arguments as JSON, raises for non-2xx, and
-returns parsed JSON (or `{"text": ...}` for non-JSON responses).
+Entries missing `name` or `endpoint` are skipped. Each `execute` reuses the `AgentRuntime`'s
+shared `httpx.AsyncClient` (30 s timeout, opened at startup and closed at shutdown), POSTs the
+arguments as JSON, raises for non-2xx, and returns parsed JSON (or `{"text": ...}` for non-JSON
+responses).
 
 The counterpart service, [`utils/lists-service`](../../utils/lists-service), defines 13 tools but
 publishes only 12 to agents: `lists_get|search|create|update|delete`,
@@ -396,9 +397,10 @@ uvicorn workers, and grows unboundedly for long-lived conversation ids.
 
 ## 9. Callbacks
 
-`CallbackClient` POSTs the `CallbackPayload` to `CALLBACK_URL` if configured, with a 30 s timeout.
-Any exception is caught and logged at WARNING — a failed callback never fails the run. There is no
-retry, no dead-letter, and no signing/authentication of the outbound request.
+`CallbackClient` POSTs the `CallbackPayload` to `CALLBACK_URL` if configured, over the
+`AgentRuntime`'s shared `httpx.AsyncClient` (30 s timeout). Any exception is caught and logged at
+WARNING — a failed callback never fails the run. There is no retry, no dead-letter, and no
+signing/authentication of the outbound request.
 
 The abstraction is thin enough that a Kafka or queue-based implementation could be dropped in
 behind the same `send(payload)` signature, as `Spec.md` anticipates.

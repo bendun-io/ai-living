@@ -32,7 +32,7 @@ and [C2](#c2) is closed.
 | [C1](#c1) | Offline planner misroutes item operations to list operations — **verified** | Critical | M |
 | [C2](#c2) | ✅ **Fixed** — unknown tool name raised `KeyError` → 500, no callback | High | XS |
 | [C6](#c6) | ✅ **Fixed** — startup crashed when the skills catalogue was not found | High | XS |
-| [C3](#c3) | Malformed tool-call arguments corrupt the transcript — **verified** | High | XS |
+| [C3](#c3) | ✅ **Fixed** — malformed tool-call arguments corrupted the transcript | High | XS |
 | [C4](#c4) | `tool_call.id` dropped; parallel calls to one tool collide | High | XS |
 | [C5](#c5) | ✅ **Fixed** — loop exhaustion silently returned the user's own message | High | XS |
 | [R1](#r1) | Any run exception 500s with no callback — the caller hangs | High | S |
@@ -51,8 +51,8 @@ and [C2](#c2) is closed.
 | [Q4](#q4) | `OpenAIResponsesClient` doesn't use the Responses API | Low | XS |
 | [Q5](#q5) | ✅ **Fixed** — MCP adapter is now a real client, not a stub | Low | S |
 | [Q6](#q6) | ✅ **Fixed** — registry allowed *silent* name collisions | Low | XS |
-| [Q7](#q7) | Deprecated `@app.on_event`; racy lazy `initialize()` | Low | XS |
-| [Q8](#q8) | New `httpx.AsyncClient` per call | Low | XS |
+| [Q7](#q7) | ✅ **Fixed** — deprecated `@app.on_event`; racy lazy `initialize()` | Low | XS |
+| [Q8](#q8) | ✅ **Fixed** — new `httpx.AsyncClient` per call | Low | XS |
 | [Q9](#q9) | ✅ **Fixed** — `AGENT_HOST` / `AGENT_PORT` were read but had no effect; now removed | Low | XS |
 | [Q10](#q10) | Loose typing at the seams (`llm_client: Any`, untyped `run`) | Low | S |
 
@@ -185,9 +185,10 @@ path. Covered by `test_unknown_tool_becomes_a_failed_result_not_an_exception` an
 This narrows [R1](#r1) but does not close it — OpenAI errors and malformed tool-call JSON still
 produce bare 500s with no callback.
 
-### <a id="c3"></a>C3 — Malformed tool-call arguments corrupt the transcript · High · **verified**
+### <a id="c3"></a>C3 — Malformed tool-call arguments corrupted the transcript · High · ✅ Fixed
 
-[`agent/executor.py:103`](../src/agent/executor.py) builds the synthetic assistant message with:
+**Was:** [`agent/executor.py:103`](../src/agent/executor.py) built the synthetic assistant message
+with:
 
 ```python
 "arguments": invocation.model_dump_json(exclude={"call_id"})
@@ -199,12 +200,17 @@ That serialises the **whole invocation**, not its arguments. Verified output:
 {"name":"lists_search","arguments":{"query":"x"}}
 ```
 
-where OpenAI expects `{"query":"x"}`. So from iteration 2 onward the model sees its own past calls
-double-wrapped. Symptoms are subtle rather than fatal — degraded multi-step reasoning, repeated
-tool calls, occasional argument mimicry of the wrong shape — which makes it easy to misdiagnose as
+where OpenAI expects `{"query":"x"}`. So from iteration 2 onward the model saw its own past calls
+double-wrapped. Symptoms were subtle rather than fatal — degraded multi-step reasoning, repeated
+tool calls, occasional argument mimicry of the wrong shape — which made it easy to misdiagnose as
 "the model is bad at this".
 
-**Fix:** `"arguments": json.dumps(invocation.arguments)`.
+**Now:** [`_build_assistant_tool_message`](../src/agent/executor.py) serialises just the arguments:
+`"arguments": json.dumps(invocation.arguments)`. Covered by
+`test_synthetic_tool_call_arguments_are_not_double_wrapped` in
+[`tests/debug_trace_smoke.py`](../tests/debug_trace_smoke.py), which scripts a two-iteration run and
+asserts the assistant message the model sees on iteration 2 carries the tool's raw arguments rather
+than a `{"name", "arguments"}` envelope.
 
 ### <a id="c4"></a>C4 — `tool_call.id` is dropped · High
 
@@ -547,21 +553,29 @@ rather than report them — worth doing once there is a second REST provider.
 Covered by four cases in [`tests/tool_registry_smoke.py`](../tests/tool_registry_smoke.py),
 including that `collisions()` returns a copy rather than the live list.
 
-### <a id="q7"></a>Q7 — Deprecated startup hook; racy lazy init · Low
+### <a id="q7"></a>Q7 — Deprecated startup hook; racy lazy init · Low · ✅ Fixed
 
-`@app.on_event("startup")` is deprecated in FastAPI 0.115 in favour of the `lifespan` context
-manager. Separately, `AgentRuntime.run` re-invokes `initialize()` when `agent_service is None` —
-under concurrent first requests this can run discovery several times and race on assignment.
+**Was:** `@app.on_event("startup")` is deprecated in FastAPI 0.115 in favour of the `lifespan`
+context manager. Separately, `AgentRuntime.run` re-invoked `initialize()` when `agent_service is
+None` — under concurrent first requests this could run discovery several times and race on
+assignment.
 
-**Fix:** move wiring into a `lifespan` handler; guard the lazy path with an `asyncio.Lock` or drop
-it and have tests call `initialize()` explicitly.
+**Now:** [`app.py`](../src/app.py) wires `runtime.initialize()` / `runtime.shutdown()` through an
+`@asynccontextmanager lifespan(app)` handler passed to `FastAPI(..., lifespan=lifespan)`, replacing
+both `on_event` hooks. [`AgentRuntime.run`](../src/agent/agent.py) now guards the lazy path with an
+`asyncio.Lock` (`_init_lock`), re-checking `agent_service is None` inside the lock so concurrent
+first requests await one `initialize()` call instead of racing.
 
-### <a id="q8"></a>Q8 — New `httpx.AsyncClient` per call · Low
+### <a id="q8"></a>Q8 — New `httpx.AsyncClient` per call · Low · ✅ Fixed
 
-Both [`rest.py`](../src/tools/adapters/rest.py) and [`callback.py`](../src/callbacks/callback.py)
-open a client per invocation, discarding connection pooling and paying TLS setup every time.
+**Was:** both [`rest.py`](../src/tools/adapters/rest.py) and
+[`callback.py`](../src/callbacks/callback.py) opened a client per invocation, discarding connection
+pooling and paying TLS setup every time.
 
-**Fix:** create one shared `AsyncClient` at startup and close it in the lifespan shutdown.
+**Now:** [`AgentRuntime`](../src/agent/agent.py) owns one shared `httpx.AsyncClient` (30 s timeout),
+created in `initialize()` and closed in `shutdown()`. It is threaded through
+`fetch_rest_tool_definitions()` into every discovered `RestTool`, and into `CallbackClient`, so
+`execute()` and `send()` reuse the pooled connection instead of opening a fresh one.
 
 ### <a id="q9"></a>Q9 — `AGENT_HOST` / `AGENT_PORT` had no effect · Low · ✅ Fixed
 
@@ -590,8 +604,8 @@ pyright to the dev requirements.
 
 ## Suggested sequence
 
-1. **Stop the bleeding** — ~~[C2](#c2)~~ and ~~[C6](#c6)~~ done. [C3](#c3) and [C4](#c4) are still
-   three-line fixes with outsized impact on multi-step runs; do them next.
+1. **Stop the bleeding** — ~~[C2](#c2)~~, ~~[C3](#c3)~~ and ~~[C6](#c6)~~ done. [C4](#c4) is still
+   a three-line fix with outsized impact on multi-step runs; do it next.
 2. **Close the front door** — [S1](#s1) is now the binding constraint. `audit_revert` is out of the
    agent's reach ([S2](#s2)), but `/agent/run` and both revert routes are still unauthenticated.
    Shared-secret auth, then an allow-list for the remaining `*_delete` tools.
@@ -606,8 +620,8 @@ pyright to the dev requirements.
 6. **Lock in the fixes** — [Q1](#q1). Rename the tests, get them running in CI with the full tool
    registry, and add loop-level unit tests. The scripted-stub LLM client added for [Q2](#q2) in
    [`tests/debug_trace_smoke.py`](../tests/debug_trace_smoke.py) is the seam for this: it drives
-   the loop deterministically, which is exactly what [C3](#c3), [C4](#c4) and the [C5](#c5)
-   regression test still need.
+   the loop deterministically, which is what the [C3](#c3) and [C5](#c5) regression tests already
+   use, and what [C4](#c4) still needs.
 
 Items in §1–2 are what stand between this and a service that can be exposed to anything other
 than localhost. Everything from §5 onward is what stands between it and one you don't have to

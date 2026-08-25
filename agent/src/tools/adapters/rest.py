@@ -12,25 +12,24 @@ class RestTool:
     description: str
     endpoint: str
     input_schema: dict[str, Any]
+    http_client: httpx.AsyncClient
     method: str = "POST"
 
     async def execute(self, arguments: dict[str, Any]) -> Any:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.request(self.method, self.endpoint, json=arguments)
-            response.raise_for_status()
-            if response.headers.get("content-type", "").startswith("application/json"):
-                return response.json()
-            return {"text": response.text}
+        response = await self.http_client.request(self.method, self.endpoint, json=arguments)
+        response.raise_for_status()
+        if response.headers.get("content-type", "").startswith("application/json"):
+            return response.json()
+        return {"text": response.text}
 
 
-async def fetch_rest_tool_definitions(base_url: str) -> list[RestTool]:
+async def fetch_rest_tool_definitions(base_url: str, http_client: httpx.AsyncClient) -> list[RestTool]:
     normalized_base = base_url.rstrip("/")
     discovery_url = f"{normalized_base}/agent/tool-definitions"
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.get(discovery_url)
-        response.raise_for_status()
-        payload = response.json()
+    response = await http_client.get(discovery_url)
+    response.raise_for_status()
+    payload = response.json()
 
     tools: list[RestTool] = []
     for item in payload.get("tools", []):
@@ -56,6 +55,7 @@ async def fetch_rest_tool_definitions(base_url: str) -> list[RestTool]:
                 description=description,
                 endpoint=target_endpoint,
                 input_schema=input_schema,
+                http_client=http_client,
                 method=method,
             )
         )

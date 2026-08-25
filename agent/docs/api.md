@@ -253,9 +253,9 @@ Content-Type: application/json
 <the model's tool arguments, verbatim>
 ```
 
-A fresh `httpx.AsyncClient` is created per call with a 30 s timeout. Non-2xx raises, and the
-exception text is captured into `ToolResult.error`. JSON responses are parsed; anything else is
-wrapped as `{"text": "<body>"}`.
+Calls reuse the `AgentRuntime`'s shared `httpx.AsyncClient` (30 s timeout, opened at startup and
+closed at shutdown). Non-2xx raises, and the exception text is captured into `ToolResult.error`.
+JSON responses are parsed; anything else is wrapped as `{"text": "<body>"}`.
 
 Arguments are **not validated against `input_schema`** before dispatch — the backing service is
 the only validator.

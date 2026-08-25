@@ -1,3 +1,6 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
 from src.agent.agent import AgentRuntime
@@ -10,17 +13,18 @@ settings = Settings.from_env()
 configure_logging(settings.log_level)
 
 runtime = AgentRuntime(settings=settings)
-app = FastAPI(title="ai-living-agent", version="0.1.0")
 
 
-@app.on_event("startup")
-async def on_startup() -> None:
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     await runtime.initialize()
+    try:
+        yield
+    finally:
+        await runtime.shutdown()
 
 
-@app.on_event("shutdown")
-async def on_shutdown() -> None:
-    await runtime.shutdown()
+app = FastAPI(title="ai-living-agent", version="0.1.0", lifespan=lifespan)
 
 
 @app.get("/health")

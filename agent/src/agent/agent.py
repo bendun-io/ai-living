@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import logging
 
+import httpx
+
 from src.callbacks.callback import CallbackClient
 from src.config import Settings
 from src.llm.openai_client import LocalLLMClient, OpenAIResponsesClient
@@ -60,6 +62,8 @@ class AgentRuntime:
     mcp_status: dict[str, MCPServerStatus] = field(default_factory=dict)
     mcp_tool_names: dict[str, list[str]] = field(default_factory=dict)
     mcp_refresh_task: asyncio.Task | None = None
+    http_client: httpx.AsyncClient | None = None
+    _init_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
     async def initialize(self) -> None:
         self.utils_lists_discovery_error = None
@@ -70,6 +74,9 @@ class AgentRuntime:
         for tool in build_local_tools(self.skill_library):
             registry.register(tool)
 
+        if self.http_client is None:
+            self.http_client = httpx.AsyncClient(timeout=30.0)
+
         if self.settings.enable_mcp:
             self._load_mcp_server_configs()
             await self.refresh_mcp_tools()
@@ -77,7 +84,9 @@ class AgentRuntime:
 
         if self.settings.enable_utils_lists_tools:
             try:
-                rest_tools = await fetch_rest_tool_definitions(self.settings.utils_lists_base_url)
+                rest_tools = await fetch_rest_tool_definitions(
+                    self.settings.utils_lists_base_url, self.http_client
+                )
                 for tool in rest_tools:
                     registry.register(tool)
                 self.utils_lists_tools_loaded = len(rest_tools)
@@ -104,18 +113,21 @@ class AgentRuntime:
             tool_registry=registry,
             tool_executor=ToolExecutor(registry),
             memory_store=MemoryStore(),
-            callback_client=CallbackClient(self.settings.callback_url),
+            callback_client=CallbackClient(self.settings.callback_url, self.http_client),
             skill_library=self.skill_library,
         )
 
     async def shutdown(self) -> None:
         task = self.mcp_refresh_task
         self.mcp_refresh_task = None
-        if task is None:
-            return
-        task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await task
+        if task is not None:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+
+        if self.http_client is not None:
+            await self.http_client.aclose()
+            self.http_client = None
 
     def _load_mcp_server_configs(self) -> None:
         self.mcp_config_error = None
@@ -188,7 +200,9 @@ class AgentRuntime:
 
     async def run(self, request):
         if self.agent_service is None:
-            await self.initialize()
+            async with self._init_lock:
+                if self.agent_service is None:
+                    await self.initialize()
         return await self.agent_service.run(request)
 
     def health_snapshot(self) -> dict[str, object]:

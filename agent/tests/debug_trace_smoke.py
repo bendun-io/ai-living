@@ -1,4 +1,5 @@
 import asyncio
+import json
 import sys
 from pathlib import Path
 
@@ -22,8 +23,10 @@ class ScriptedLLMClient:
 
     def __init__(self, plans: list[LLMPlan]) -> None:
         self._plans = list(plans)
+        self.seen_messages: list[list[dict]] = []
 
     async def plan(self, messages, tools) -> LLMPlan:
+        self.seen_messages.append(list(messages))
         if self._plans:
             return self._plans.pop(0)
         return LLMPlan(kind="final", final_answer="done")
@@ -116,6 +119,42 @@ def test_skills_read_lists_only_consulted_skills() -> None:
 
         assert response.debug.skillsRead == ["calendar_lookup"]
         assert len(response.debug.skillsRead) < len(library_names)
+
+    asyncio.run(run_case())
+
+
+def test_synthetic_tool_call_arguments_are_not_double_wrapped() -> None:
+    """Regression for C3: the assistant message replayed to the model must carry the tool's
+    raw arguments, not the whole ToolInvocation (name + arguments) serialised as one blob."""
+
+    async def run_case() -> None:
+        llm_client = ScriptedLLMClient(
+            [
+                LLMPlan(
+                    kind="tool_calls",
+                    tool_calls=[
+                        ToolInvocation(name="search_skills", arguments={"query": "calendar"})
+                    ],
+                ),
+                LLMPlan(kind="final", final_answer="done"),
+            ]
+        )
+        service = _build_service(llm_client, max_iterations=3)
+
+        await service.run(
+            AgentRunRequest(
+                conversationId="tool-call-args-not-double-wrapped",
+                user="tester",
+                message="when am I free?",
+                attachments=[],
+            )
+        )
+
+        second_call_messages = llm_client.seen_messages[1]
+        assistant_message = next(m for m in second_call_messages if m.get("role") == "assistant")
+        raw_arguments = assistant_message["tool_calls"][0]["function"]["arguments"]
+
+        assert json.loads(raw_arguments) == {"query": "calendar"}
 
     asyncio.run(run_case())
 
