@@ -1,0 +1,14 @@
+{
+  "name": "rewe-service",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Puppeteer-driven automation service for searching REWE.de and adding products to the shopping cart.",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "puppeteer": "^25.9.0"
+  }
+}

@@ -1,11 +1,11 @@
 meta {
-  name: Item - Update
+  name: Item - Create
   type: http
-  seq: 8
+  seq: 6
 }
 
 post {
-  url: {{utils_lists_base_url}}/items/update
+  url: {{utils_lists_base_url}}/items/create
   body: json
   auth: none
 }
@@ -16,10 +16,10 @@ headers {
 
 body:json {
   {
-    "id": "{{item_id}}",
-    "title": "First Task Updated",
-    "notes": "Updated via Bruno",
-    "status": "done",
+    "list_id": "{{list_id}}",
+    "title": "First Task",
+    "notes": "Created via Bruno",
+    "status": "open",
     "actor": "bruno"
   }
 }
@@ -31,9 +31,15 @@ assert {
 }
 
 script:post-response {
+  const itemId = res.body?.item?.id;
   const auditId = res.body?.audit_id;
+  
+  if (itemId) {
+    bru.setVar("item_id", itemId);
+  }
+  
   if (auditId) {
     bru.setVar("audit_id", auditId);
-    bru.setVar("item_update_audit_id", auditId);
+    bru.setVar("item_create_audit_id", auditId);
   }
 }

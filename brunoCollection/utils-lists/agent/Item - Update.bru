@@ -1,11 +1,11 @@
 meta {
-  name: List - Delete
+  name: Item - Update
   type: http
-  seq: 10
+  seq: 9
 }
 
 post {
-  url: {{utils_lists_base_url}}/lists/delete
+  url: {{utils_lists_base_url}}/items/update
   body: json
   auth: none
 }
@@ -16,14 +16,17 @@ headers {
 
 body:json {
   {
-    "id": "{{list_id}}",
+    "id": "{{item_id}}",
+    "title": "First Task Updated",
+    "notes": "Updated via Bruno",
+    "status": "done",
     "actor": "bruno"
   }
 }
 
 assert {
   res.status: eq 200
-  res.body.list.id: isDefined
+  res.body.item.id: isDefined
   res.body.audit_id: isDefined
 }
 
@@ -31,6 +34,6 @@ script:post-response {
   const auditId = res.body?.audit_id;
   if (auditId) {
     bru.setVar("audit_id", auditId);
-    bru.setVar("list_delete_audit_id", auditId);
+    bru.setVar("item_update_audit_id", auditId);
   }
 }

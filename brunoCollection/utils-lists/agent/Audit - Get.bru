@@ -1,11 +1,11 @@
 meta {
-  name: List - Get
+  name: Audit - Get
   type: http
-  seq: 2
+  seq: 13
 }
 
 post {
-  url: {{utils_lists_base_url}}/lists/get
+  url: {{utils_lists_base_url}}/audit/get
   body: json
   auth: none
 }
@@ -16,12 +16,11 @@ headers {
 
 body:json {
   {
-    "id": "{{list_id}}",
-    "include_deleted": false
+    "id": "{{audit_id}}"
   }
 }
 
 assert {
   res.status: eq 200
-  res.body.list.id: isDefined
+  res.body.audit.id: isDefined
 }
