@@ -1,0 +1,38 @@
+meta {
+  name: 1 - Search Salami Pizza
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{rewe_service_base_url}}/search
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "query": "salami pizza",
+    "limit": 20
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.products: isDefined
+}
+
+script:post-response {
+  const products = res.body?.products;
+  if (!Array.isArray(products) || products.length === 0) {
+    throw new Error("No products found for 'salami pizza' - cannot continue to the add-to-cart step.");
+  }
+
+  const first = products[0];
+  bru.setVar("rewe_product_id", first.id);
+  bru.setVar("rewe_product_name", first.name);
+}

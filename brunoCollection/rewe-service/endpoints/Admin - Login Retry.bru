@@ -1,0 +1,16 @@
+meta {
+  name: Admin - Login Retry
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{rewe_service_base_url}}/admin/login/retry
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.loginState: isDefined
+}

@@ -1,0 +1,16 @@
+meta {
+  name: Admin - Debug Info
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{rewe_service_base_url}}/admin/debug-info
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.loginState: isDefined
+}

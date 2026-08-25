@@ -1,0 +1,34 @@
+meta {
+  name: Search
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{rewe_service_base_url}}/search
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "query": "milch",
+    "limit": 20
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.products: isDefined
+}
+
+script:post-response {
+  const products = res.body?.products;
+  if (Array.isArray(products) && products.length > 0 && products[0]?.id) {
+    bru.setVar("rewe_product_id", products[0].id);
+  }
+}

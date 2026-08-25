@@ -1,0 +1,16 @@
+meta {
+  name: Agent - Tool Definitions
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{rewe_service_base_url}}/agent/tool-definitions
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.tools: isDefined
+}

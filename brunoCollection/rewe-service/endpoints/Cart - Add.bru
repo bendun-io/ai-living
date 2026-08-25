@@ -1,0 +1,27 @@
+meta {
+  name: Cart - Add
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{rewe_service_base_url}}/cart/add
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "productId": "{{rewe_product_id}}",
+    "quantity": 1
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.added: eq true
+}
