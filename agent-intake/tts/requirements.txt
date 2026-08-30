@@ -1,4 +1,4 @@
-fastapi==0.115.6
-uvicorn[standard]==0.34.0
-numpy==2.2.1
-kokoro-onnx==0.4.4
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+numpy==2.5.2
+kokoro-onnx==0.4.7
